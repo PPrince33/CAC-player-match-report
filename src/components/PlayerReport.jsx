@@ -1,124 +1,203 @@
+/**
+ * PlayerReport — Neo-Brutalist player match report
+ *
+ * Uses forwardRef so the parent can pass a ref for html2canvas PDF export.
+ *
+ * Props:
+ *   player     {object}              — lineup entry (player_id, jersey_no, position, team_id,
+ *                                      player.player_name, starting_xi, match_duration, etc.)
+ *   stats      {object}              — calcPlayerStats result (passes, passAccuracy, goals,
+ *                                      totalXG, tackles, interceptions, passEvents,
+ *                                      shotEvents, allEvents, etc.)
+ *   matchInfo  {object}              — match row (match_name, match_date, home_team_id,
+ *                                      away_team_id, home_team_score, away_team_score, etc.)
+ *   lineup     {object[]}            — full lineup array (all players in the match)
+ *   allStats   {object}              — stats keyed by player_id
+ *   pitchMode  {'standard'|'futsal'} — controls pitch dimensions for canvas components
+ *
+ * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
+ */
 import { forwardRef } from 'react'
-import StatsGrid from './StatsGrid.jsx'
+import BrutalistCard from './BrutalistCard.jsx'
 import HeatMap from './HeatMap.jsx'
-import PassMap from './PassMap.jsx'
-import ShotMap from './ShotMap.jsx'
-import PlayerRadar from './RadarChart.jsx'
+import RadarChart from './RadarChart.jsx'
+import FutsalDistributionPitch from './FutsalDistributionPitch.jsx'
+import ShotMapPitch from './ShotMapPitch.jsx'
+import AveragePositionsPitch from './AveragePositionsPitch.jsx'
+import ShotPlacementPitch from './ShotPlacementPitch.jsx'
 import { buildRadarData } from '../utils/stats.js'
 
-const PlayerReport = forwardRef(function PlayerReport(
-  { lineup, stats, teamColor, matchName, matchDate, allStats }, ref
-) {
-  if (!lineup || !stats) return null
+const COLOR_HOME = '#0077B6'
+const COLOR_AWAY = '#D90429'
 
-  const player = lineup.player
-  const team = lineup.team
-  const radarData = buildRadarData(stats, Object.values(allStats))
+const PlayerReport = forwardRef(function PlayerReport(
+  { player, stats, matchInfo, lineup, allStats, pitchMode = 'standard' },
+  ref
+) {
+  if (!player || !stats) return null
+
+  // Determine team color based on whether this player's team is home or away
+  const isHome = player.team_id === matchInfo?.home_team_id
+  const accentColor = isHome ? COLOR_HOME : COLOR_AWAY
+
+  // Player display fields
+  const playerName = player.player?.player_name ?? player.player_name ?? 'Unknown Player'
+  const jerseyNumber = player.jersey_no ?? player.jersey_number ?? '—'
+  const position = player.position ?? player.player?.position ?? '—'
+
+  // Match display fields
+  const matchName = matchInfo?.match_name ?? '—'
+  const matchDate = matchInfo?.match_date ?? '—'
+
+  // Radar chart data
+  const radarData = buildRadarData(stats, Object.values(allStats ?? {}))
+
+  // Assemble players prop for AveragePositionsPitch
+  const avgPositionPlayers = (lineup ?? []).map((p) => ({
+    playerId: p.player_id,
+    name: p.player?.player_name ?? p.player_name ?? 'Unknown',
+    jerseyNo: p.jersey_no ?? p.jersey_number ?? null,
+    teamSide: p.team_id === matchInfo?.home_team_id ? 'home' : 'away',
+    events: allStats?.[p.player_id]?.allEvents ?? [],
+  }))
+
+  // Conditional rendering flags
+  const hasPassEvents = stats.passEvents?.length > 0
+  const hasShotEvents = stats.shotEvents?.length > 0
 
   return (
     <div
       ref={ref}
       style={{
-        background: 'var(--bg)',
-        fontFamily: 'var(--font)',
+        background: 'var(--color-white)',
+        fontFamily: 'monospace',
         padding: 24,
         maxWidth: 900,
         margin: '0 auto',
       }}
     >
-      {/* ── Header ── */}
-      <div style={{
-        background: teamColor,
-        color: 'white',
-        padding: '16px 20px',
-        borderRadius: 8,
-        marginBottom: 20,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.8 }}>
-            Player Match Report
+      {/* ── 1. Header card ─────────────────────────────────────────────── */}
+      {/* Requirements: 5.1 */}
+      <div style={{ marginBottom: 20 }}>
+        <BrutalistCard accentColor={accentColor} padding={20}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.6, marginBottom: 4 }}>
+                Player Match Report
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase' }}>
+                {playerName}
+              </div>
+              <div style={{ fontSize: 13, marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700 }}>#{jerseyNumber}</span>
+                <span style={{ opacity: 0.7 }}>{position}</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, textTransform: 'uppercase' }}>{matchName}</div>
+              <div style={{ opacity: 0.7, marginTop: 4 }}>{matchDate}</div>
+            </div>
           </div>
-          <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>
-            {player?.player_name ?? 'Unknown Player'}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>
-            {team?.team_name} · #{lineup.jersey_no} · {lineup.position ?? player?.position ?? '—'}
-          </div>
-        </div>
-        <div style={{ textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{matchName}</div>
-          <div>{matchDate}</div>
-          <div style={{ marginTop: 6 }}>
-            {lineup.starting_xi ? '▶ Starting XI' : '⇄ Substitute'}
-            {lineup.match_duration != null && ` · ${lineup.match_duration}'`}
-          </div>
-        </div>
+        </BrutalistCard>
       </div>
 
-      {/* ── Quick numbers row ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(6, 1fr)',
-        gap: 8,
-        marginBottom: 24,
-      }}>
+      {/* ── 2. Six stat tiles ──────────────────────────────────────────── */}
+      {/* Requirements: 5.2 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(6, 1fr)',
+          gap: 8,
+          marginBottom: 20,
+        }}
+      >
         {[
-          { label: 'Passes', value: stats.totalPasses },
-          { label: 'Pass%', value: `${stats.passAccuracy}%` },
-          { label: 'Goals', value: stats.goals },
-          { label: 'xG', value: stats.totalXG },
-          { label: 'Tackles', value: stats.tackles },
-          { label: 'Intercepts', value: stats.interceptions },
+          { label: 'PASSES', value: stats.totalPasses ?? 0 },
+          { label: 'PASS%', value: `${stats.passAccuracy ?? 0}%` },
+          { label: 'GOALS', value: stats.goals ?? 0 },
+          { label: 'XG', value: stats.totalXG ?? 0 },
+          { label: 'TACKLES', value: stats.tackles ?? 0 },
+          { label: 'INTERCEPTIONS', value: stats.interceptions ?? 0 },
         ].map(({ label, value }) => (
-          <div key={label} style={{
-            background: 'var(--white)',
-            border: `2px solid ${teamColor}`,
-            borderRadius: 6,
-            padding: '10px 0',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
-            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.65, marginTop: 2 }}>{label}</div>
-          </div>
+          <BrutalistCard key={label} padding={10}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2 }}>{value}</div>
+              <div
+                style={{
+                  fontSize: 9,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  opacity: 0.65,
+                  marginTop: 4,
+                  fontWeight: 700,
+                }}
+              >
+                {label}
+              </div>
+            </div>
+          </BrutalistCard>
         ))}
       </div>
 
-      {/* ── Visualisations row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-        <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 8, padding: 14 }}>
-          <HeatMap events={stats.allEvents} teamColor={teamColor} />
-        </div>
-        <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 8, padding: 14 }}>
-          <PlayerRadar data={radarData} teamColor={teamColor} playerName={player?.player_name} />
-        </div>
+      {/* ── 3. Two-column grid: HeatMap + RadarChart ───────────────────── */}
+      {/* Requirements: 5.3 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <BrutalistCard title="Touch Heatmap" padding={14}>
+          <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
+        </BrutalistCard>
+        <BrutalistCard title="Performance Radar" padding={14}>
+          <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
+        </BrutalistCard>
       </div>
 
-      {/* ── Pass map ── */}
-      {stats.passEvents.length > 0 && (
-        <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 8, padding: 14, marginBottom: 20 }}>
-          <PassMap passes={stats.passEvents} />
+      {/* ── 4. Below-grid pitch cards ──────────────────────────────────── */}
+      {/* Requirements: 5.4, 5.5, 5.6 */}
+
+      {/* FutsalDistributionPitch — only when passEvents.length > 0 */}
+      {hasPassEvents && (
+        <div style={{ marginBottom: 16 }}>
+          <BrutalistCard title="Pass Distribution" padding={14}>
+            <FutsalDistributionPitch
+              events={stats.passEvents}
+              pitchMode={pitchMode}
+              teamColor={accentColor}
+              playerName={playerName}
+            />
+          </BrutalistCard>
         </div>
       )}
 
-      {/* ── Shot map ── */}
-      {stats.shotEvents.length > 0 && (
-        <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 8, padding: 14, marginBottom: 20 }}>
-          <ShotMap shots={stats.shotEvents} />
+      {/* ShotMapPitch — only when shotEvents.length > 0 */}
+      {hasShotEvents && (
+        <div style={{ marginBottom: 16 }}>
+          <BrutalistCard title="Shot Map" padding={14}>
+            <ShotMapPitch shots={stats.shotEvents} pitchMode={pitchMode} />
+          </BrutalistCard>
         </div>
       )}
 
-      {/* ── Full stats ── */}
-      <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 8, padding: 16 }}>
-        <StatsGrid s={stats} teamColor={teamColor} />
+      {/* AveragePositionsPitch — always shown */}
+      <div style={{ marginBottom: 16 }}>
+        <BrutalistCard title="Average Positions" padding={14}>
+          <AveragePositionsPitch players={avgPositionPlayers} pitchMode={pitchMode} />
+        </BrutalistCard>
       </div>
 
-      {/* Footer */}
-      <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.45, marginTop: 14 }}>
-        CAC Player Match Report · Match ID {lineup.match_id}
-      </div>
+      {/* ShotPlacementPitch — only when shotEvents.length > 0 */}
+      {hasShotEvents && (
+        <div style={{ marginBottom: 16 }}>
+          <BrutalistCard title="Shot Placement" padding={14}>
+            <ShotPlacementPitch shots={stats.shotEvents} />
+          </BrutalistCard>
+        </div>
+      )}
     </div>
   )
 })

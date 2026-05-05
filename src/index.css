@@ -1,27 +1,89 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ============================================================
+   Neo-Brutalist Design System Tokens
+   ============================================================ */
 
 :root {
-  --team-a: #0277B6;
-  --team-b: #D90429;
-  --accent: #09D69F;
-  --bg: #FFD166;
-  --white: #FFFFFF;
-  --black: #000000;
+  /* Color tokens */
+  --color-home: #0077B6;
+  --color-away: #D90429;
+  --color-accent: #FFD166;
+  --color-success: #06D6A0;
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+
+  /* Shadow & border tokens */
+  --shadow-brutal: 6px 6px 0px 0px #000000;
+  --border-brutal: 2px solid #000000;
+  --border-brutal-thick: 4px solid #000000;
+
+  /* Legacy aliases kept for backward compatibility */
+  --team-a: var(--color-home);
+  --team-b: var(--color-away);
+  --accent: var(--color-success);
+  --bg: var(--color-accent);
+  --white: var(--color-white);
+  --black: var(--color-black);
   --font: 'Courier New', Courier, monospace;
 }
 
+/* ============================================================
+   Global Reset
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ============================================================
+   Base Typography
+   ============================================================ */
+
 body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--black);
+  font-family: monospace;
+  background: var(--color-accent);
+  color: var(--color-black);
   min-height: 100vh;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f1f1f1; }
-::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: monospace;
+}
+
+/* ============================================================
+   Card & Button Primitive Resets (no border-radius)
+   ============================================================ */
+
+button {
+  border-radius: 0;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 0;
+}
