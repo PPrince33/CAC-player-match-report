@@ -105,9 +105,6 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    position: 'sticky',
-    top: 48,
-    zIndex: 9,
   },
 }
 
