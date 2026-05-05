@@ -9,7 +9,7 @@ export default function Pitch({ children, className = '' }) {
       style={{ width: '100%', height: 'auto', display: 'block' }}
     >
       {/* Background */}
-      <rect width={W} height={H} fill="white" />
+      <rect width={W} height={H} fill="#F4F4F4" />
 
       {/* Boundary */}
       <rect x={0} y={0} width={W} height={H} fill="none" stroke="black" strokeWidth={0.6} />

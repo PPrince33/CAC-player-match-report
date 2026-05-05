@@ -36,7 +36,7 @@ export function drawPitch(ctx, width, height, mode = 'standard', flipX = false) 
   }
 
   // ── Fill pitch ──────────────────────────────────────────────────────────────
-  ctx.fillStyle = '#FFFFFF'
+  ctx.fillStyle = '#F4F4F4'
   ctx.fillRect(0, 0, width, height)
 
   // ── Stroke settings ─────────────────────────────────────────────────────────

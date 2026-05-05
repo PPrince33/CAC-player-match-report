@@ -89,14 +89,14 @@ function PitchBrush({ events, onBrushChange }) {
       <svg
         ref={svgRef}
         viewBox="0 0 120 80"
-        style={{ width: '100%', border: BT, display: 'block', cursor: dragging ? 'crosshair' : 'crosshair', userSelect: 'none', background: '#fff' }}
+        style={{ width: '100%', border: BT, display: 'block', cursor: 'crosshair', userSelect: 'none', background: '#F4F4F4' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={() => dragging && setDragging(false)}
       >
         {/* Pitch lines */}
-        <rect x={0} y={0} width={120} height={80} fill="#fff" stroke="#000" strokeWidth={0.6} />
+        <rect x={0} y={0} width={120} height={80} fill="#F4F4F4" stroke="#000" strokeWidth={0.6} />
         <line x1={60} y1={0} x2={60} y2={80} stroke="#000" strokeWidth={0.4} />
         <circle cx={60} cy={40} r={9.15} fill="none" stroke="#000" strokeWidth={0.4} />
         <circle cx={60} cy={40} r={0.5} fill="#000" />
