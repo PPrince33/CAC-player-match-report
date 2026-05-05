@@ -178,7 +178,7 @@ Rewrite the CAC Player Match Report dashboard with a Neo-Brutalist visual system
   - Run `npm run build` and confirm no build errors
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 14. Git push to remote
+- [x] 14. Git push to remote
   - Stage all changes: `git add -A`
   - Commit: `git commit -m "feat: neo-brutalist dashboard redesign with canvas pitch components"`
   - Add remote if not present: `git remote add origin https://github.com/PPrince33/CAC-player-match-report.git`
