@@ -36,11 +36,11 @@ export function drawPitch(ctx, width, height, mode = 'standard', flipX = false) 
   }
 
   // ── Fill pitch ──────────────────────────────────────────────────────────────
-  ctx.fillStyle = '#4a7c59'
+  ctx.fillStyle = '#FFFFFF'
   ctx.fillRect(0, 0, width, height)
 
   // ── Stroke settings ─────────────────────────────────────────────────────────
-  ctx.strokeStyle = '#FFFFFF'
+  ctx.strokeStyle = '#000000'
   ctx.lineWidth = Math.max(1, width / 400)
 
   if (mode === 'futsal') {
@@ -72,7 +72,7 @@ function drawStandardMarkings(ctx, px, py) {
   ctx.stroke()
 
   // Centre spot (filled, r = 0.3 m)
-  ctx.fillStyle = '#FFFFFF'
+  ctx.fillStyle = '#000000'
   ctx.beginPath()
   ctx.arc(px(52.5), py(34), px(0.3), 0, Math.PI * 2)
   ctx.fill()
@@ -90,7 +90,7 @@ function drawStandardMarkings(ctx, px, py) {
   ctx.strokeRect(px(99.5), py(24.84), px(5.5), py(18.32))
 
   // Left penalty spot (filled, r = 0.3 m) at (11, 34)
-  ctx.fillStyle = '#FFFFFF'
+  ctx.fillStyle = '#000000'
   ctx.beginPath()
   ctx.arc(px(11), py(34), px(0.3), 0, Math.PI * 2)
   ctx.fill()
@@ -175,7 +175,7 @@ function drawFutsalMarkings(ctx, px, py) {
   ctx.strokeRect(px(34), py(8.5), px(6), py(3))
 
   // Left penalty spot (filled, r = 0.2 m) at (6, 10)
-  ctx.fillStyle = '#FFFFFF'
+  ctx.fillStyle = '#000000'
   ctx.beginPath()
   ctx.arc(px(6), py(10), px(0.2), 0, Math.PI * 2)
   ctx.fill()
