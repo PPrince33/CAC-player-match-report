@@ -3,6 +3,19 @@ import { supabase, hasCredentials } from '../lib/supabase.js'
 import { calcPlayerStats } from '../utils/stats.js'
 
 export const MATCH_ID = '76818172-d262-4503-936d-603700d82576'
+
+// Normalise all coordinates to "always attacking left→right" perspective.
+// L2R: keep as-is.  R2L: flip x→(120-x), y→(80-y).
+function normaliseDirection(ev) {
+  if (ev.team_direction !== 'R2L') return ev
+  return {
+    ...ev,
+    start_x: 120 - ev.start_x,
+    start_y: 80  - ev.start_y,
+    end_x: ev.end_x != null ? 120 - ev.end_x : null,
+    end_y: ev.end_y != null ? 80  - ev.end_y : null,
+  }
+}
 export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
 
 export function useMatchData() {
@@ -65,9 +78,11 @@ export function useMatchData() {
           for (const p of (ps || [])) playerMap[p.player_id] = p
         }
 
-        // 5. Only keep events for MKS players
+        // 5. Only keep events for MKS players, then normalise direction to L2R
         const teamPlayerIds = new Set(playerIds)
-        const teamEvents = eventData.filter(ev => teamPlayerIds.has(ev.player_id))
+        const teamEvents = eventData
+          .filter(ev => teamPlayerIds.has(ev.player_id))
+          .map(normaliseDirection)
 
         // 6. Group & compute stats per player
         const byPlayer = {}
