@@ -176,7 +176,7 @@ export default function App() {
 
       {/* ── Top nav ─────────────────────────────────────────── */}
       <nav style={S.navBar}>
-        <span style={S.navTitle}>⚽ PLAYER INTEL</span>
+        <span style={S.navTitle}>CAC PLAYER REPORT</span>
         <button style={S.modeBtn(mode === 'single')} onClick={() => setMode('single')}>SINGLE</button>
         <button style={S.modeBtn(mode === 'compare')} onClick={() => setMode('compare')}>COMPARE</button>
         {mode === 'compare' && (

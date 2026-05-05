@@ -244,8 +244,10 @@ const PlayerReport = forwardRef(function PlayerReport(
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
             <div style={{ borderRight: B }}>
               <Module title="TACKLING">
-                <PercentBar label="Tackle Success" made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
-                <StatRow label="Tackles Won (Possession)" value={stats.tackleRegain ?? 0} accent />
+                <StatRow label="Total Tackles"            value={stats.tackles ?? 0} />
+                <StatRow label="Successful"               value={stats.succTackles ?? 0} accent />
+                <StatRow label="With Possession"          value={stats.tackleRegain ?? 0} accent />
+                <PercentBar label="Success Rate" made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
               </Module>
               <Module title="INTERCEPTIONS">
                 <StatRow label="Total Interceptions"      value={stats.interceptions ?? 0} accent />
@@ -288,7 +290,7 @@ const PlayerReport = forwardRef(function PlayerReport(
 
         {/* HIGHLIGHTS */}
         {tab === 'HIGHLIGHTS' && (
-          <HighlightTab events={stats.allEvents ?? []} playerName={playerName} />
+          <HighlightTab events={stats.allEvents ?? []} playerName={playerName} videoUrl={matchInfo?.video_url ?? null} />
         )}
 
         {/* COMPACT: heatmap inline */}
