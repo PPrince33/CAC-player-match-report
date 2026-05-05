@@ -60,7 +60,41 @@ function drawArrowhead(ctx, fromX, fromY, tipX, tipY) {
   ctx.fill()
 }
 
-export default function FutsalDistributionPitch({ events = [], pitchMode = 'standard', teamColor, playerName }) {
+// Build a player ID → short name map from lineup array
+function buildPlayerMap(players = []) {
+  const map = {}
+  for (const p of players) {
+    const id   = p.player_id
+    const name = p.player?.player_name ?? p.player_name ?? null
+    if (id && name) {
+      // Store last name only for brevity on canvas
+      const parts = name.trim().split(' ')
+      map[id] = parts[parts.length - 1].toUpperCase()
+    }
+  }
+  return map
+}
+
+// Infer receiver: find the earliest teammate event whose start_x/y is
+// within 10 units of the pass endpoint and within 8 seconds after the pass.
+function inferReceiver(passEvent, allTeamEvents, playerMap) {
+  if (!passEvent.end_x || !passEvent.end_y) return null
+  const T  = passEvent.match_time_seconds ?? 0
+  const ex = passEvent.end_x
+  const ey = passEvent.end_y
+  for (const ev of allTeamEvents) {
+    if (ev.player_id === passEvent.player_id) continue
+    const t = ev.match_time_seconds ?? 0
+    if (t < T || t > T + 8) continue
+    if (Math.abs((ev.start_x ?? 0) - ex) < 10 && Math.abs((ev.start_y ?? 0) - ey) < 10) {
+      return playerMap[ev.player_id] ?? null
+    }
+  }
+  return null
+}
+
+export default function FutsalDistributionPitch({ events = [], pitchMode = 'standard', teamColor, playerName, players = [], allTeamEvents = [] }) {
+  const playerMap = buildPlayerMap(players)
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
   const hitRegionsRef = useRef([])
@@ -98,6 +132,14 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
 
         const hasEnd = event.end_x != null && event.end_y != null
 
+        // Resolve receiver: direct DB field → ID lookup → spatial/temporal inference
+        const receiverName =
+          event.receiver_player_name ??
+          event.pass_recipient_name ??
+          (event.receiver_player_id ? playerMap[event.receiver_player_id] : null) ??
+          (event.secondary_player_id ? playerMap[event.secondary_player_id] : null) ??
+          inferReceiver(event, allTeamEvents, playerMap)
+
         if (hasEnd) {
           const { px: ex, py: ey } = mapCoords(event.end_x, event.end_y, w, h)
 
@@ -118,12 +160,34 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
 
           ctx.restore()
 
+          // Draw receiver name near the arrowhead tip
+          if (receiverName) {
+            const fontSize = Math.max(5, Math.min(8, w / 60))
+            ctx.save()
+            ctx.globalAlpha = isSuccess ? 0.95 : 0.6
+            ctx.font = `bold ${fontSize}px monospace`
+            const tw = ctx.measureText(receiverName).width
+            const pad = 2
+            // Offset label slightly past the arrowhead
+            const angle = Math.atan2(ey - sy, ex - sx)
+            const lx = ex + Math.cos(angle) * (5 + pad)
+            const ly = ey + Math.sin(angle) * (5 + pad)
+            // Background pill
+            ctx.fillStyle = '#000'
+            ctx.fillRect(lx - pad, ly - fontSize, tw + pad * 2, fontSize + pad)
+            // Text
+            ctx.fillStyle = '#FFD166'
+            ctx.textBaseline = 'top'
+            ctx.textAlign = 'left'
+            ctx.fillText(receiverName, lx, ly - fontSize + 1)
+            ctx.restore()
+          }
+
           // Hit region: midpoint of the line for proximity testing
           const midX = (sx + ex) / 2
           const midY = (sy + ey) / 2
-          hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event })
-          // Also register the end point for arrowhead hits
-          hitRegionsRef.current.push({ cx: ex, cy: ey, eventData: event })
+          hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event, receiverName })
+          hitRegionsRef.current.push({ cx: ex, cy: ey, eventData: event, receiverName })
         } else {
           // No end coords — draw circle only
           ctx.save()
@@ -190,16 +254,21 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
         ? Math.floor(ev.match_time_seconds / 60) + "'"
         : 'N/A'
 
+      const fields = [
+        { label: 'ACTION',   value: ev.action ?? 'N/A' },
+        { label: 'TIME',     value: minutes },
+        { label: 'OUTCOME',  value: ev.outcome ?? 'N/A' },
+        { label: 'FROM',     value: playerName ?? ev.player_name ?? 'N/A' },
+      ]
+      if (nearest.receiverName) {
+        fields.push({ label: 'TO', value: nearest.receiverName })
+      }
+
       setTooltip({
         visible: true,
         x: mouseX,
         y: mouseY,
-        fields: [
-          { label: 'ACTION', value: ev.action ?? 'N/A' },
-          { label: 'TIME', value: minutes },
-          { label: 'OUTCOME', value: ev.outcome ?? 'N/A' },
-          { label: 'PLAYER', value: playerName ?? ev.player_name ?? 'N/A' },
-        ],
+        fields,
       })
     } else {
       setTooltip((prev) => ({ ...prev, visible: false }))

@@ -1,4 +1,4 @@
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState, useMemo } from 'react'
 import HeatMap from './HeatMap.jsx'
 import RadarChart from './RadarChart.jsx'
 import FutsalDistributionPitch from './FutsalDistributionPitch.jsx'
@@ -104,6 +104,13 @@ const PlayerReport = forwardRef(function PlayerReport(
   const radarData    = buildRadarData(stats, Object.values(allStats ?? {}))
   const hasPassEvents = stats.passEvents?.length > 0
   const hasShotEvents = stats.shotEvents?.length > 0
+
+  // All team events sorted by time — used for receiver inference in pass map
+  const allTeamEvents = useMemo(() => {
+    return Object.entries(allStats ?? {})
+      .flatMap(([pid, s]) => (s.allEvents ?? []).map(e => ({ ...e, _pid: pid })))
+      .sort((a, b) => (a.match_time_seconds ?? 0) - (b.match_time_seconds ?? 0))
+  }, [allStats])
 
   return (
     <div ref={ref} style={{ background: '#fff', fontFamily: 'var(--font)', maxWidth: compact ? '100%' : 920, margin: '0 auto', padding: compact ? 12 : 20 }}>
@@ -224,7 +231,7 @@ const PlayerReport = forwardRef(function PlayerReport(
             <div>
               {hasPassEvents
                 ? <Module title="PASS MAP" style={{ height: '100%' }}>
-                    <FutsalDistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} />
+                    <FutsalDistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
                   </Module>
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO PASS DATA</div>
               }
