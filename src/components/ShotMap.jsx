@@ -23,13 +23,13 @@ export default function ShotMap({ shots, title = 'Shot Map' }) {
         <span><span style={{ color: 'white', fontWeight: 700 }}>○</span> Off Target / Blocked</span>
       </div>
       {/* Show only attacking half */}
-      <svg viewBox="60 0 60 80" style={{ width: '50%', display: 'block', background: '#2d6a2d', borderRadius: 4 }}>
+      <svg viewBox="60 0 60 80" style={{ width: '50%', display: 'block', background: 'white', border: '1px solid #ccc', borderRadius: 4 }}>
         {/* Goal */}
-        <rect x={120} y={36} width={2} height={8} fill="none" stroke="white" strokeWidth={0.5} />
-        <rect x={103.5} y={20} width={16.5} height={40} fill="none" stroke="white" strokeWidth={0.4} />
-        <rect x={114.5} y={30} width={5.5} height={20} fill="none" stroke="white" strokeWidth={0.3} />
-        <line x1={60} y1={0} x2={60} y2={80} stroke="white" strokeWidth={0.4} />
-        <rect x={60} y={0} width={60} height={80} fill="none" stroke="white" strokeWidth={0.5} />
+        <rect x={120} y={36} width={2} height={8} fill="none" stroke="black" strokeWidth={0.5} />
+        <rect x={103.5} y={20} width={16.5} height={40} fill="none" stroke="black" strokeWidth={0.4} />
+        <rect x={114.5} y={30} width={5.5} height={20} fill="none" stroke="black" strokeWidth={0.3} />
+        <line x1={60} y1={0} x2={60} y2={80} stroke="black" strokeWidth={0.4} />
+        <rect x={60} y={0} width={60} height={80} fill="none" stroke="black" strokeWidth={0.5} />
 
         {shots.map((s, i) => {
           const r = 1.5 + (s.xg / maxXG) * 3
