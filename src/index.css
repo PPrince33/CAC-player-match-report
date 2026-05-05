@@ -1,89 +1,53 @@
-/* ============================================================
-   Neo-Brutalist Design System Tokens
-   ============================================================ */
-
 :root {
-  /* Color tokens */
-  --color-home: #0077B6;
-  --color-away: #D90429;
-  --color-accent: #FFD166;
-  --color-success: #06D6A0;
   --color-black: #000000;
   --color-white: #FFFFFF;
+  --color-yellow: #FFD166;
+  --color-blue: #0277B6;
+  --color-red: #D90429;
+  --color-green: #09D69F;
 
-  /* Shadow & border tokens */
-  --shadow-brutal: 6px 6px 0px 0px #000000;
-  --border-brutal: 2px solid #000000;
-  --border-brutal-thick: 4px solid #000000;
-
-  /* Legacy aliases kept for backward compatibility */
-  --team-a: var(--color-home);
-  --team-b: var(--color-away);
-  --accent: var(--color-success);
-  --bg: var(--color-accent);
-  --white: var(--color-white);
-  --black: var(--color-black);
+  --border: 2px solid #000000;
+  --border-thick: 3px solid #000000;
   --font: 'Courier New', Courier, monospace;
+
+  /* legacy aliases */
+  --color-home: var(--color-blue);
+  --color-away: var(--color-red);
+  --color-accent: var(--color-yellow);
+  --color-success: var(--color-green);
+  --border-brutal: var(--border);
+  --border-brutal-thick: var(--border-thick);
+  --shadow-brutal: 4px 4px 0 #000;
 }
 
-/* ============================================================
-   Global Reset
-   ============================================================ */
-
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  border-radius: 0;
+  border-radius: 0 !important;
 }
 
-/* ============================================================
-   Base Typography
-   ============================================================ */
-
 body {
-  font-family: monospace;
-  background: var(--color-accent);
+  font-family: var(--font);
+  background: var(--color-white);
   color: var(--color-black);
   min-height: 100vh;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-family: monospace;
+  letter-spacing: 0.06em;
+  font-family: var(--font);
 }
-
-/* ============================================================
-   Card & Button Primitive Resets (no border-radius)
-   ============================================================ */
 
 button {
-  border-radius: 0;
+  border-radius: 0 !important;
   cursor: pointer;
-  font-family: monospace;
+  font-family: var(--font);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-/* ============================================================
-   Scrollbar
-   ============================================================ */
-
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 0;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #eee; }
+::-webkit-scrollbar-thumb { background: #000; border-radius: 0; }
