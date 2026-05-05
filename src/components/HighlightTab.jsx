@@ -200,7 +200,7 @@ export default function HighlightTab({ events = [], playerName, videoUrl }) {
     if (selected === i) { setSelected(null); return }
     setSelected(i)
     const ev = filtered[i]
-    if (ev?.match_time_seconds != null) setSeekTo(ev.match_time_seconds)
+    if (ev?.match_time_seconds != null) setSeekTo(Math.max(0, ev.match_time_seconds - 3))
   }
 
   const Select = ({ label, value, options, onChange }) => (
@@ -303,7 +303,7 @@ export default function HighlightTab({ events = [], playerName, videoUrl }) {
             ))}
             {ev.match_time_seconds != null && (
               <button
-                onClick={() => setSeekTo(ev.match_time_seconds)}
+                onClick={() => setSeekTo(Math.max(0, ev.match_time_seconds - 3))}
                 style={{ fontFamily: 'var(--font)', fontSize: 11, fontWeight: 700, background: '#000', color: '#FFD166', border: 'none', padding: '6px 14px', cursor: 'pointer', letterSpacing: 1.5, textTransform: 'uppercase', marginLeft: 'auto' }}>
                 ▶ SEEK TO {fmtTime(ev.match_time_seconds)}
               </button>
