@@ -112,8 +112,52 @@ const PlayerReport = forwardRef(function PlayerReport(
       .sort((a, b) => (a.match_time_seconds ?? 0) - (b.match_time_seconds ?? 0))
   }, [allStats])
 
+  // ── COMPACT mode (compare view) — identity + radar + heatmap only ──────
+  if (compact) {
+    return (
+      <div ref={ref} style={{ background: '#fff', fontFamily: 'var(--font)', padding: 12 }}>
+        {/* Identity */}
+        <div style={{ border: BT, marginBottom: 12, display: 'flex' }}>
+          <div style={{
+            background: accentColor, color: '#fff', minWidth: 60, display: 'flex',
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '10px 8px', borderRight: BT,
+          }}>
+            <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{jerseyNumber}</div>
+            <div style={{ fontSize: 7, letterSpacing: 1, marginTop: 3, opacity: 0.85, textTransform: 'uppercase' }}>NO.</div>
+          </div>
+          <div style={{ flex: 1, padding: '8px 12px' }}>
+            <div style={{ fontSize: 7, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 2, fontWeight: 700 }}>PLAYER MATCH REPORT</div>
+            <div style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, lineHeight: 1.1 }}>{playerName}</div>
+            <div style={{ fontSize: 9, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{position}</span>
+              <span style={{ opacity: 0.4, borderLeft: B, paddingLeft: 10 }}>{matchDate}</span>
+            </div>
+          </div>
+          {matchInfo?.home_team_score != null && (
+            <div style={{ borderLeft: BT, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 64 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2 }}>{matchInfo.home_team_score}–{matchInfo.away_team_score}</div>
+              <div style={{ fontSize: 7, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>SCORE</div>
+            </div>
+          )}
+        </div>
+
+        {/* Radar */}
+        <Module title="PERFORMANCE RADAR">
+          <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
+        </Module>
+
+        {/* Heatmap */}
+        <Module title="TOUCH HEATMAP" style={{ marginTop: 0 }}>
+          <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
+        </Module>
+      </div>
+    )
+  }
+
+  // ── FULL (single-player) mode ────────────────────────────────────────────
   return (
-    <div ref={ref} style={{ background: '#fff', fontFamily: 'var(--font)', maxWidth: compact ? '100%' : 920, margin: '0 auto', padding: compact ? 12 : 20 }}>
+    <div ref={ref} style={{ background: '#fff', fontFamily: 'var(--font)', maxWidth: 920, margin: '0 auto', padding: 20 }}>
 
       {/* ── Identity Module ─────────────────────────────────── */}
       <div style={{ border: BT, marginBottom: 12, display: 'flex' }}>
@@ -127,7 +171,7 @@ const PlayerReport = forwardRef(function PlayerReport(
         </div>
         <div style={{ flex: 1, padding: '10px 14px' }}>
           <div style={{ fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 3, fontWeight: 700 }}>PLAYER MATCH REPORT</div>
-          <div style={{ fontSize: compact ? 18 : 24, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, lineHeight: 1.1 }}>{playerName}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, lineHeight: 1.1 }}>{playerName}</div>
           <div style={{ fontSize: 10, marginTop: 5, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{position}</span>
             <span style={{ opacity: 0.5, borderLeft: B, paddingLeft: 14 }}>{matchName}</span>
@@ -159,30 +203,28 @@ const PlayerReport = forwardRef(function PlayerReport(
       </div>
 
       {/* ── Tab Nav ───────────────────────────────────────────── */}
-      {!compact && (
-        <div style={{ display: 'flex', borderBottom: BT, overflowX: 'auto' }}>
-          {TABS.map((t, i) => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1.5,
-              textTransform: 'uppercase', padding: '8px 14px', whiteSpace: 'nowrap',
-              background: tab === t ? '#FFD166' : '#fff', color: '#000',
-              border: 'none', borderRight: i < TABS.length - 1 ? B : 'none',
-              borderBottom: tab === t ? '3px solid #FFD166' : '3px solid transparent',
-              cursor: 'pointer',
-            }}>
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'flex', borderBottom: BT, overflowX: 'auto' }}>
+        {TABS.map((t, i) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1.5,
+            textTransform: 'uppercase', padding: '8px 14px', whiteSpace: 'nowrap',
+            background: tab === t ? '#FFD166' : '#fff', color: '#000',
+            border: 'none', borderRight: i < TABS.length - 1 ? B : 'none',
+            borderBottom: tab === t ? '3px solid #FFD166' : '3px solid transparent',
+            cursor: 'pointer',
+          }}>
+            {t}
+          </button>
+        ))}
+      </div>
 
       {/* ── Tab Content ───────────────────────────────────────── */}
       <div style={{ border: BT, borderTop: 'none' }}>
 
         {/* OVERVIEW */}
-        {(tab === 'OVERVIEW' || compact) && (
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 0 }}>
-            <div style={{ borderRight: compact ? 'none' : B }}>
+        {tab === 'OVERVIEW' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+            <div style={{ borderRight: B }}>
               <Module title="PERFORMANCE RADAR">
                 <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
               </Module>
@@ -293,12 +335,6 @@ const PlayerReport = forwardRef(function PlayerReport(
           <HighlightTab events={stats.allEvents ?? []} playerName={playerName} videoUrl={matchInfo?.video_url ?? null} />
         )}
 
-        {/* COMPACT: heatmap inline */}
-        {compact && (
-          <Module title="TOUCH HEATMAP">
-            <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
-          </Module>
-        )}
       </div>
     </div>
   )
