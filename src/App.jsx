@@ -112,89 +112,126 @@ const B  = '2px solid #000'
 const BT = '3px solid #000'
 const FONT = 'var(--font)'
 
-/** Full-width defensive comparison table shown in compare mode */
-function DefensiveComparison({ statsA, statsB, lineupA, lineupB }) {
+/** One VS row */
+function CompareRow({ label, valA, valB, isSection }) {
+  if (isSection) {
+    return (
+      <div style={{ background: '#000', color: '#FFD166', padding: '5px 14px', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT, display: 'flex', alignItems: 'center' }}>
+        {label}
+      </div>
+    )
+  }
+
+  const numA = parseFloat(valA)
+  const numB = parseFloat(valB)
+  const isNum = !isNaN(numA) && !isNaN(numB) && valA !== '—' && valB !== '—'
+  const aWins = isNum && numA > numB
+  const bWins = isNum && numB > numA
+
+  return (
+    <div style={{ display: 'flex', borderBottom: B, minHeight: 44 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px', background: aWins ? '#e8f4ff' : '#fff' }}>
+        <span style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: aWins ? '#0277B6' : '#000' }}>{valA}</span>
+      </div>
+      <div style={{ width: 200, minWidth: 160, borderLeft: B, borderRight: B, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px', background: '#f7f7f7', flexShrink: 0 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', fontFamily: FONT, color: '#333' }}>{label}</span>
+      </div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px', background: bWins ? '#fff0f0' : '#fff' }}>
+        <span style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: bWins ? '#D90429' : '#000' }}>{valB}</span>
+      </div>
+    </div>
+  )
+}
+
+/** Full-width comparison table shown in compare mode — covers all action types */
+function FullComparison({ statsA, statsB, lineupA, lineupB }) {
   if (!statsA && !statsB) return null
 
   const nameA = lineupA?.player?.player_name ?? 'PLAYER 1'
   const nameB = lineupB?.player?.player_name ?? 'PLAYER 2'
 
-  const rows = [
-    { label: 'Total Tackles',            keyA: 'tackles',        keyB: 'tackles' },
-    { label: 'Tackles Won',              keyA: 'succTackles',    keyB: 'succTackles' },
-    { label: 'Tackles – With Possession',keyA: 'tackleRegain',   keyB: 'tackleRegain' },
-    { label: 'Tackle Success %',
-      valA: statsA ? (statsA.tackles > 0 ? Math.round((statsA.succTackles / statsA.tackles) * 100) + '%' : '0%') : '—',
-      valB: statsB ? (statsB.tackles > 0 ? Math.round((statsB.succTackles / statsB.tackles) * 100) + '%' : '0%') : '—',
-    },
-    { label: 'Interceptions',            keyA: 'interceptions',  keyB: 'interceptions' },
-    { label: 'Interceptions (Regained)', keyA: 'intRegain',      keyB: 'intRegain' },
-    { label: 'Aerial Duels Won',         keyA: 'aerialDuels',    keyB: 'aerialDuels' },
-    { label: 'Blocks',                   keyA: 'blocks',         keyB: 'blocks' },
-    { label: 'Clearances',               keyA: 'clearances',     keyB: 'clearances' },
-    { label: 'Pressures Applied',        keyA: 'pressures',      keyB: 'pressures' },
-    { label: 'Saves',                    keyA: 'saves',          keyB: 'saves' },
+  const pct = (made, total, s) =>
+    s ? (total > 0 ? Math.round((made / total) * 100) + '%' : '0%') : '—'
+
+  const sections = [
+    // ── PASSING ──────────────────────────────────────────────────────────
+    { label: 'PASSING', isSection: true },
+    { label: 'Total Passes',             key: 'totalPasses' },
+    { label: 'Completed Passes',         key: 'completePasses' },
+    { label: 'Pass Accuracy %',          valA: pct(statsA?.completePasses, statsA?.totalPasses, statsA), valB: pct(statsB?.completePasses, statsB?.totalPasses, statsB) },
+    { label: 'Progressive Passes',       key: 'progPasses' },
+    { label: 'Progressive Completed',    key: 'successProgPasses' },
+    { label: 'Long Balls',               key: 'longBalls' },
+    { label: 'Long Balls Completed',     key: 'successLongBalls' },
+    { label: 'Crosses',                  key: 'crosses' },
+    { label: 'Crosses Completed',        key: 'successCrosses' },
+    { label: 'Passes into Box',          key: 'passesIntoBox' },
+    { label: 'Key Passes',               key: 'keyPasses' },
+    { label: 'Assists',                  key: 'assists' },
+    { label: 'Incomplete Passes',        key: 'incompletePasses' },
+    { label: 'Passes in Own Half',       key: 'ownHalfPasses' },
+    { label: 'Passes in Opp. Half',      key: 'oppHalfPasses' },
+
+    // ── ATTACKING / SHOOTING ─────────────────────────────────────────────
+    { label: 'ATTACKING & SHOOTING', isSection: true },
+    { label: 'Goals',                    key: 'goals' },
+    { label: 'Total Shots',              key: 'totalShots' },
+    { label: 'Shots on Target',          key: 'shotsOnTarget' },
+    { label: 'xG (Expected Goals)',      key: 'totalXG' },
+    { label: 'xGOT (xG on Target)',      key: 'totalXGOT' },
+    { label: 'Conversion Rate %',        valA: statsA?.totalShots > 0 ? Math.round(((statsA.goals ?? 0) / statsA.totalShots) * 100) + '%' : (statsA ? '0%' : '—'), valB: statsB?.totalShots > 0 ? Math.round(((statsB.goals ?? 0) / statsB.totalShots) * 100) + '%' : (statsB ? '0%' : '—') },
+
+    // ── DRIBBLING & CARRIES ──────────────────────────────────────────────
+    { label: 'DRIBBLING & CARRIES', isSection: true },
+    { label: 'Dribbles Attempted',       key: 'dribbles' },
+    { label: 'Dribbles Successful',      key: 'succDribbles' },
+    { label: 'Dribble Success %',        valA: pct(statsA?.succDribbles, statsA?.dribbles, statsA), valB: pct(statsB?.succDribbles, statsB?.dribbles, statsB) },
+    { label: 'Carries into Final 3rd',   key: 'carriesIntoFT' },
+    { label: 'Carries into Box',         key: 'carriesIntoBox' },
+    { label: 'Ball Controls',            key: 'ballControl' },
+
+    // ── DEFENSIVE ────────────────────────────────────────────────────────
+    { label: 'DEFENSIVE', isSection: true },
+    { label: 'Total Tackles',            key: 'tackles' },
+    { label: 'Tackles Won',              key: 'succTackles' },
+    { label: 'Tackles with Possession',  key: 'tackleRegain' },
+    { label: 'Tackle Success %',         valA: pct(statsA?.succTackles, statsA?.tackles, statsA), valB: pct(statsB?.succTackles, statsB?.tackles, statsB) },
+    { label: 'Interceptions',            key: 'interceptions' },
+    { label: 'Interceptions (Regained)', key: 'intRegain' },
+    { label: 'Aerial Duels Won',         key: 'aerialDuels' },
+    { label: 'Blocks',                   key: 'blocks' },
+    { label: 'Clearances',               key: 'clearances' },
+    { label: 'Pressures Applied',        key: 'pressures' },
+    { label: 'Saves',                    key: 'saves' },
     {
       label: 'Total Defensive Actions',
-      valA: statsA ? [(statsA.tackles ?? 0) + (statsA.interceptions ?? 0) + (statsA.blocks ?? 0) + (statsA.clearances ?? 0)] : '—',
-      valB: statsB ? [(statsB.tackles ?? 0) + (statsB.interceptions ?? 0) + (statsB.blocks ?? 0) + (statsB.clearances ?? 0)] : '—',
+      valA: statsA ? (statsA.tackles ?? 0) + (statsA.interceptions ?? 0) + (statsA.blocks ?? 0) + (statsA.clearances ?? 0) : '—',
+      valB: statsB ? (statsB.tackles ?? 0) + (statsB.interceptions ?? 0) + (statsB.blocks ?? 0) + (statsB.clearances ?? 0) : '—',
     },
-  ].map(r => ({
+  ].map(r => r.isSection ? r : ({
     label: r.label,
-    valA: r.valA !== undefined ? r.valA : (statsA ? (statsA[r.keyA] ?? 0) : '—'),
-    valB: r.valB !== undefined ? r.valB : (statsB ? (statsB[r.keyB] ?? 0) : '—'),
+    valA: r.valA !== undefined ? r.valA : (statsA != null ? (statsA[r.key] ?? 0) : '—'),
+    valB: r.valB !== undefined ? r.valB : (statsB != null ? (statsB[r.key] ?? 0) : '—'),
   }))
-
-  const colStyle = { flex: 1, textAlign: 'center', fontFamily: FONT, fontWeight: 700 }
-  const headerCell = (label, color) => (
-    <div style={{ ...colStyle, background: color, color: '#fff', padding: '8px 12px', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }}>
-      {label}
-    </div>
-  )
 
   return (
     <div style={{ borderTop: BT, background: '#fff' }}>
-      {/* Section header */}
-      <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
-        DEFENSIVE COMPARISON
-      </div>
-
-      {/* Column headers */}
+      {/* Master header */}
       <div style={{ display: 'flex', borderBottom: BT }}>
-        {headerCell(nameA, '#0277B6')}
-        <div style={{ width: 220, minWidth: 180, background: '#111', color: '#FFD166', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT, flexShrink: 0 }}>
-          STAT
+        <div style={{ flex: 1, background: '#0277B6', color: '#fff', padding: '10px 14px', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', fontFamily: FONT }}>
+          {nameA}
         </div>
-        {headerCell(nameB, '#D90429')}
+        <div style={{ width: 200, minWidth: 160, background: '#111', color: '#FFD166', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 4px', fontSize: 11, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: FONT, flexShrink: 0 }}>
+          VS
+        </div>
+        <div style={{ flex: 1, background: '#D90429', color: '#fff', padding: '10px 14px', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', fontFamily: FONT, textAlign: 'right' }}>
+          {nameB}
+        </div>
       </div>
 
-      {/* Rows */}
-      {rows.map((row, i) => {
-        const numA = typeof row.valA === 'number' ? row.valA : parseFloat(row.valA)
-        const numB = typeof row.valB === 'number' ? row.valB : parseFloat(row.valB)
-        const isNum = !isNaN(numA) && !isNaN(numB) && row.valA !== '—' && row.valB !== '—'
-        const aWins = isNum && numA > numB
-        const bWins = isNum && numB > numA
-
-        return (
-          <div key={i} style={{ display: 'flex', borderBottom: B, minHeight: 40 }}>
-            {/* Player A value */}
-            <div style={{ ...colStyle, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: aWins ? '#e8f4ff' : '#fff' }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: aWins ? '#0277B6' : '#000' }}>{row.valA}</span>
-            </div>
-
-            {/* Label */}
-            <div style={{ width: 220, minWidth: 180, borderLeft: B, borderRight: B, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px', background: '#f7f7f7', flexShrink: 0 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', fontFamily: FONT, color: '#333' }}>{row.label}</span>
-            </div>
-
-            {/* Player B value */}
-            <div style={{ ...colStyle, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bWins ? '#fff0f0' : '#fff' }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: bWins ? '#D90429' : '#000' }}>{row.valB}</span>
-            </div>
-          </div>
-        )
-      })}
+      {sections.map((row, i) => (
+        <CompareRow key={i} label={row.label} valA={row.valA} valB={row.valB} isSection={row.isSection} />
+      ))}
     </div>
   )
 }
@@ -424,8 +461,8 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Full-width defensive comparison table */}
-              <DefensiveComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} />
+              {/* Full-width stats comparison table */}
+              <FullComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} />
             </div>
           )}
 
