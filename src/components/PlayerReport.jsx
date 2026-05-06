@@ -146,11 +146,6 @@ const PlayerReport = forwardRef(function PlayerReport(
         <Module title="PERFORMANCE RADAR">
           <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
         </Module>
-
-        {/* Heatmap */}
-        <Module title="TOUCH HEATMAP" style={{ marginTop: 0 }}>
-          <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
-        </Module>
       </div>
     )
   }

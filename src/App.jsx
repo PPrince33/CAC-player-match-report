@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useMatchData } from './hooks/useMatchData.js'
 import { hasCredentials } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
+import HeatMap from './components/HeatMap.jsx'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -463,6 +464,29 @@ export default function App() {
 
               {/* Full-width stats comparison table */}
               <FullComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} />
+
+              {/* Side-by-side heatmaps */}
+              {(statsA || statsB) && (
+                <div style={{ borderTop: BT }}>
+                  <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
+                    TOUCH HEATMAP
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                    <div style={{ borderRight: BT, padding: 12 }}>
+                      {statsA
+                        ? <HeatMap events={statsA.allEvents ?? []} teamColor="#0277B6" />
+                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO DATA</div>
+                      }
+                    </div>
+                    <div style={{ padding: 12 }}>
+                      {statsB
+                        ? <HeatMap events={statsB.allEvents ?? []} teamColor="#D90429" />
+                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO DATA</div>
+                      }
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
