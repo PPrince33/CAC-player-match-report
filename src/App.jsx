@@ -108,6 +108,97 @@ const S = {
   },
 }
 
+const B  = '2px solid #000'
+const BT = '3px solid #000'
+const FONT = 'var(--font)'
+
+/** Full-width defensive comparison table shown in compare mode */
+function DefensiveComparison({ statsA, statsB, lineupA, lineupB }) {
+  if (!statsA && !statsB) return null
+
+  const nameA = lineupA?.player?.player_name ?? 'PLAYER 1'
+  const nameB = lineupB?.player?.player_name ?? 'PLAYER 2'
+
+  const rows = [
+    { label: 'Total Tackles',            keyA: 'tackles',        keyB: 'tackles' },
+    { label: 'Tackles Won',              keyA: 'succTackles',    keyB: 'succTackles' },
+    { label: 'Tackles – With Possession',keyA: 'tackleRegain',   keyB: 'tackleRegain' },
+    { label: 'Tackle Success %',
+      valA: statsA ? (statsA.tackles > 0 ? Math.round((statsA.succTackles / statsA.tackles) * 100) + '%' : '0%') : '—',
+      valB: statsB ? (statsB.tackles > 0 ? Math.round((statsB.succTackles / statsB.tackles) * 100) + '%' : '0%') : '—',
+    },
+    { label: 'Interceptions',            keyA: 'interceptions',  keyB: 'interceptions' },
+    { label: 'Interceptions (Regained)', keyA: 'intRegain',      keyB: 'intRegain' },
+    { label: 'Aerial Duels Won',         keyA: 'aerialDuels',    keyB: 'aerialDuels' },
+    { label: 'Blocks',                   keyA: 'blocks',         keyB: 'blocks' },
+    { label: 'Clearances',               keyA: 'clearances',     keyB: 'clearances' },
+    { label: 'Pressures Applied',        keyA: 'pressures',      keyB: 'pressures' },
+    { label: 'Saves',                    keyA: 'saves',          keyB: 'saves' },
+    {
+      label: 'Total Defensive Actions',
+      valA: statsA ? [(statsA.tackles ?? 0) + (statsA.interceptions ?? 0) + (statsA.blocks ?? 0) + (statsA.clearances ?? 0)] : '—',
+      valB: statsB ? [(statsB.tackles ?? 0) + (statsB.interceptions ?? 0) + (statsB.blocks ?? 0) + (statsB.clearances ?? 0)] : '—',
+    },
+  ].map(r => ({
+    label: r.label,
+    valA: r.valA !== undefined ? r.valA : (statsA ? (statsA[r.keyA] ?? 0) : '—'),
+    valB: r.valB !== undefined ? r.valB : (statsB ? (statsB[r.keyB] ?? 0) : '—'),
+  }))
+
+  const colStyle = { flex: 1, textAlign: 'center', fontFamily: FONT, fontWeight: 700 }
+  const headerCell = (label, color) => (
+    <div style={{ ...colStyle, background: color, color: '#fff', padding: '8px 12px', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }}>
+      {label}
+    </div>
+  )
+
+  return (
+    <div style={{ borderTop: BT, background: '#fff' }}>
+      {/* Section header */}
+      <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
+        DEFENSIVE COMPARISON
+      </div>
+
+      {/* Column headers */}
+      <div style={{ display: 'flex', borderBottom: BT }}>
+        {headerCell(nameA, '#0277B6')}
+        <div style={{ width: 220, minWidth: 180, background: '#111', color: '#FFD166', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT, flexShrink: 0 }}>
+          STAT
+        </div>
+        {headerCell(nameB, '#D90429')}
+      </div>
+
+      {/* Rows */}
+      {rows.map((row, i) => {
+        const numA = typeof row.valA === 'number' ? row.valA : parseFloat(row.valA)
+        const numB = typeof row.valB === 'number' ? row.valB : parseFloat(row.valB)
+        const isNum = !isNaN(numA) && !isNaN(numB) && row.valA !== '—' && row.valB !== '—'
+        const aWins = isNum && numA > numB
+        const bWins = isNum && numB > numA
+
+        return (
+          <div key={i} style={{ display: 'flex', borderBottom: B, minHeight: 40 }}>
+            {/* Player A value */}
+            <div style={{ ...colStyle, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: aWins ? '#e8f4ff' : '#fff' }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: aWins ? '#0277B6' : '#000' }}>{row.valA}</span>
+            </div>
+
+            {/* Label */}
+            <div style={{ width: 220, minWidth: 180, borderLeft: B, borderRight: B, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px', background: '#f7f7f7', flexShrink: 0 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', fontFamily: FONT, color: '#333' }}>{row.label}</span>
+            </div>
+
+            {/* Player B value */}
+            <div style={{ ...colStyle, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bWins ? '#fff0f0' : '#fff' }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: bWins ? '#D90429' : '#000' }}>{row.valB}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function App() {
   const { match, lineups, allStats, loading, error } = useMatchData()
   const [mode, setMode] = useState('single') // 'single' | 'compare'
@@ -298,37 +389,43 @@ export default function App() {
 
           {/* Compare mode */}
           {mode === 'compare' && (lineupA || lineupB) && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, minHeight: '100%' }}>
-              {[
-                { lineup: lineupA, stats: statsA, ref: reportRefA, color: '#0277B6', label: 'PLAYER 1' },
-                { lineup: lineupB, stats: statsB, ref: reportRefB, color: '#D90429', label: 'PLAYER 2' },
-              ].map(({ lineup, stats, ref, color, label }, i) => (
-                <div key={i} style={{ borderRight: i === 0 ? '3px solid #000' : 'none' }}>
-                  <div style={{ ...S.topBar, position: 'relative', top: 'auto', background: color, borderBottom: '3px solid #000' }}>
-                    <span style={{ fontWeight: 700, fontSize: 12, fontFamily: 'var(--font)', textTransform: 'uppercase', color: '#fff', letterSpacing: 1 }}>
-                      {lineup ? lineup.player?.player_name : label}
-                      {lineup && <span style={{ fontWeight: 400, fontSize: 10, marginLeft: 8, opacity: 0.8 }}>#{lineup.jersey_no}</span>}
-                    </span>
-                    {lineup && stats && (
-                      <button style={{ ...S.downloadBtn(downloading), background: '#fff', color: '#000' }}
-                        onClick={() => downloadSingle(ref, lineup)} disabled={downloading}>
-                        ⬇ PDF
-                      </button>
-                    )}
-                  </div>
-                  {lineup && stats
-                    ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} compareColor={color} compact />
-                    : (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, flexDirection: 'column', gap: 12, opacity: 0.4 }}>
-                        <div style={{ fontSize: 36 }}>⚽</div>
-                        <div style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
-                          SELECT {label}
+            <div>
+              {/* Side-by-side player cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                {[
+                  { lineup: lineupA, stats: statsA, ref: reportRefA, color: '#0277B6', label: 'PLAYER 1' },
+                  { lineup: lineupB, stats: statsB, ref: reportRefB, color: '#D90429', label: 'PLAYER 2' },
+                ].map(({ lineup, stats, ref, color, label }, i) => (
+                  <div key={i} style={{ borderRight: i === 0 ? '3px solid #000' : 'none' }}>
+                    <div style={{ ...S.topBar, position: 'relative', top: 'auto', background: color, borderBottom: '3px solid #000' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, fontFamily: 'var(--font)', textTransform: 'uppercase', color: '#fff', letterSpacing: 1 }}>
+                        {lineup ? lineup.player?.player_name : label}
+                        {lineup && <span style={{ fontWeight: 400, fontSize: 10, marginLeft: 8, opacity: 0.8 }}>#{lineup.jersey_no}</span>}
+                      </span>
+                      {lineup && stats && (
+                        <button style={{ ...S.downloadBtn(downloading), background: '#fff', color: '#000' }}
+                          onClick={() => downloadSingle(ref, lineup)} disabled={downloading}>
+                          ⬇ PDF
+                        </button>
+                      )}
+                    </div>
+                    {lineup && stats
+                      ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} compareColor={color} compact />
+                      : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, flexDirection: 'column', gap: 12, opacity: 0.4 }}>
+                          <div style={{ fontSize: 36 }}>⚽</div>
+                          <div style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
+                            SELECT {label}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  }
-                </div>
-              ))}
+                      )
+                    }
+                  </div>
+                ))}
+              </div>
+
+              {/* Full-width defensive comparison table */}
+              <DefensiveComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} />
             </div>
           )}
 
