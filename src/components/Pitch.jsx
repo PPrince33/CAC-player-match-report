@@ -4,12 +4,13 @@ export default function Pitch({ children, className = '' }) {
 
   return (
     <svg
-      viewBox={`0 0 ${W} ${H}`}
+      viewBox={`-3 0 ${W + 6} ${H}`}
       className={className}
       style={{ width: '100%', height: 'auto', display: 'block' }}
+      overflow="visible"
     >
       {/* Background */}
-      <rect width={W} height={H} fill="#F4F4F4" />
+      <rect x={-3} width={W + 6} height={H} fill="#F4F4F4" />
 
       {/* Boundary */}
       <rect x={0} y={0} width={W} height={H} fill="none" stroke="black" strokeWidth={0.6} />
@@ -35,9 +36,9 @@ export default function Pitch({ children, className = '' }) {
       {/* Right penalty spot */}
       <circle cx={109} cy={40} r={0.4} fill="black" />
 
-      {/* Goals */}
-      <rect x={-2} y={36} width={2} height={8} fill="none" stroke="black" strokeWidth={0.5} />
-      <rect x={120} y={36} width={2} height={8} fill="none" stroke="black" strokeWidth={0.5} />
+      {/* Goals — protrude outside boundary */}
+      <rect x={-2.5} y={36} width={2.5} height={8} fill="#ddd" stroke="black" strokeWidth={0.5} />
+      <rect x={120}  y={36} width={2.5} height={8} fill="#ddd" stroke="black" strokeWidth={0.5} />
 
       {/* Corner arcs */}
       {[[0, 0], [120, 0], [0, 80], [120, 80]].map(([cx, cy], i) => (

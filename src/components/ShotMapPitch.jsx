@@ -50,13 +50,13 @@ function mapCoords(x, y, w, h, halfWidth, mode) {
 }
 
 /**
- * Compute shot circle radius from xG value.
- * r = 4 + (xg / maxXG) * 14, clamped to [4, 18].
- * When maxXG === 0, returns 4.
+ * Compute shot circle radius from xG value using a fixed absolute scale.
+ * xG is already in [0, 1], so r = 4 + xg * 14, clamped to [4, 18].
+ * Using a fixed scale ensures the same xG always renders the same circle
+ * size across all players.
  */
-function shotRadius(xg, maxXG) {
-  if (!maxXG || maxXG === 0) return 4
-  const r = 4 + (xg / maxXG) * 14
+function shotRadius(xg) {
+  const r = 4 + (xg ?? 0) * 14
   return Math.min(18, Math.max(4, r))
 }
 
@@ -105,8 +105,6 @@ export default function ShotMapPitch({ shots = [], pitchMode = 'standard' }) {
 
       if (!shots || shots.length === 0) return
 
-      const maxXG = Math.max(...shots.map((s) => s.xg ?? 0))
-
       shots.forEach((shot) => {
         const { px: cx, py: cy } = mapCoords(
           shot.start_x,
@@ -117,7 +115,7 @@ export default function ShotMapPitch({ shots = [], pitchMode = 'standard' }) {
           pitchMode
         )
 
-        const r = shotRadius(shot.xg ?? 0, maxXG)
+        const r = shotRadius(shot.xg ?? 0)
         const isGoal = shot.outcome === 'Goal'
 
         ctx.save()

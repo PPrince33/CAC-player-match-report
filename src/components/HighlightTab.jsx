@@ -71,9 +71,10 @@ function PitchBrush({ events, onBrushChange }) {
           </button>
         )}
       </div>
-      <svg ref={svgRef} viewBox="0 0 120 80"
-        style={{ width: '100%', border: BT, display: 'block', cursor: 'crosshair', userSelect: 'none', background: '#F4F4F4' }}
+      <svg ref={svgRef} viewBox="-3 0 126 80"
+        style={{ width: '100%', border: BT, display: 'block', cursor: 'crosshair', userSelect: 'none', background: '#F4F4F4', overflow: 'visible' }}
         onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={() => drag && setDrag(false)}>
+        <rect x={-3} y={0} width={126} height={80} fill="#F4F4F4" />
         <rect x={0} y={0} width={120} height={80} fill="#F4F4F4" stroke="#000" strokeWidth={0.6} />
         <line x1={60} y1={0} x2={60} y2={80} stroke="#000" strokeWidth={0.4} />
         <circle cx={60} cy={40} r={9.15} fill="none" stroke="#000" strokeWidth={0.4} />
@@ -84,8 +85,8 @@ function PitchBrush({ events, onBrushChange }) {
         <rect x={103.5} y={20} width={16.5} height={40} fill="none" stroke="#000" strokeWidth={0.4} />
         <rect x={114.5} y={30} width={5.5}  height={20} fill="none" stroke="#000" strokeWidth={0.3} />
         <circle cx={109} cy={40} r={0.4} fill="#000" />
-        <rect x={-2}  y={36} width={2} height={8} fill="none" stroke="#000" strokeWidth={0.4} />
-        <rect x={120} y={36} width={2} height={8} fill="none" stroke="#000" strokeWidth={0.4} />
+        <rect x={-2.5} y={36} width={2.5} height={8} fill="#ddd" stroke="#000" strokeWidth={0.4} />
+        <rect x={120}  y={36} width={2.5} height={8} fill="#ddd" stroke="#000" strokeWidth={0.4} />
         {dots.map(d => <circle key={d.key} cx={d.cx} cy={d.cy} r={1.2} fill="#0277B6" opacity={0.45} />)}
         {rect && <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="rgba(255,209,102,0.25)" stroke="#FFD166" strokeWidth={0.8} strokeDasharray="2 1" />}
       </svg>

@@ -117,11 +117,19 @@ function drawStandardMarkings(ctx, px, py) {
   ctx.arc(px(94), py(34), px(9.15), Math.PI - rightArcAngle, Math.PI + rightArcAngle)
   ctx.stroke()
 
-  // Left goal: from (0, 30.34) to (-2.44, 37.66) — depth extends left (negative x)
-  ctx.strokeRect(px(-2.44), py(30.34), px(2.44), py(7.32))
-
-  // Right goal: from (105, 30.34) to (107.44, 37.66)
-  ctx.strokeRect(px(105), py(30.34), px(2.44), py(7.32))
+  // Goals — drawn protruding outward; fill grey so they're visible even when clipped
+  ctx.fillStyle = '#dddddd'
+  // Left goal: protrudes left of x=0 — fill inside boundary too so it shows
+  ctx.fillRect(px(0), py(30.34), px(2.44), py(7.32))
+  ctx.strokeRect(px(0), py(30.34), px(2.44), py(7.32))
+  // Right goal: protrudes right of x=105
+  ctx.fillRect(px(105 - 2.44), py(30.34), px(2.44), py(7.32))
+  ctx.strokeRect(px(105 - 2.44), py(30.34), px(2.44), py(7.32))
+  // Goalpost lines at the boundary
+  ctx.lineWidth = Math.max(2, width / 200)
+  ctx.beginPath(); ctx.moveTo(px(0), py(30.34)); ctx.lineTo(px(0), py(37.66)); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(px(105), py(30.34)); ctx.lineTo(px(105), py(37.66)); ctx.stroke()
+  ctx.lineWidth = Math.max(1, width / 400)
 
   // Corner arcs (r = 1 m, quarter circles)
   // Top-left corner (0, 0): arc from 0 to π/2
@@ -185,9 +193,14 @@ function drawFutsalMarkings(ctx, px, py) {
   ctx.arc(px(34), py(10), px(0.2), 0, Math.PI * 2)
   ctx.fill()
 
-  // Left goal: from (0, 8.5) to (-1, 11.5) — depth 1, width 3
-  ctx.strokeRect(px(-1), py(8.5), px(1), py(3))
-
-  // Right goal: from (40, 8.5) to (41, 11.5)
-  ctx.strokeRect(px(40), py(8.5), px(1), py(3))
+  // Goals — fill grey, goalpost lines at boundary
+  ctx.fillStyle = '#dddddd'
+  ctx.fillRect(px(0), py(8.5), px(1), py(3))
+  ctx.strokeRect(px(0), py(8.5), px(1), py(3))
+  ctx.fillRect(px(39), py(8.5), px(1), py(3))
+  ctx.strokeRect(px(39), py(8.5), px(1), py(3))
+  ctx.lineWidth = Math.max(2, width / 200)
+  ctx.beginPath(); ctx.moveTo(px(0), py(8.5)); ctx.lineTo(px(0), py(11.5)); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(px(40), py(8.5)); ctx.lineTo(px(40), py(11.5)); ctx.stroke()
+  ctx.lineWidth = Math.max(1, width / 400)
 }

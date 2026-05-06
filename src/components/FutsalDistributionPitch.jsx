@@ -160,28 +160,6 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
 
           ctx.restore()
 
-          // Draw receiver name near the arrowhead tip
-          if (receiverName) {
-            const fontSize = Math.max(5, Math.min(8, w / 60))
-            ctx.save()
-            ctx.globalAlpha = isSuccess ? 0.95 : 0.6
-            ctx.font = `bold ${fontSize}px monospace`
-            const tw = ctx.measureText(receiverName).width
-            const pad = 2
-            // Offset label slightly past the arrowhead
-            const angle = Math.atan2(ey - sy, ex - sx)
-            const lx = ex + Math.cos(angle) * (5 + pad)
-            const ly = ey + Math.sin(angle) * (5 + pad)
-            // Background pill
-            ctx.fillStyle = '#000'
-            ctx.fillRect(lx - pad, ly - fontSize, tw + pad * 2, fontSize + pad)
-            // Text
-            ctx.fillStyle = '#FFD166'
-            ctx.textBaseline = 'top'
-            ctx.textAlign = 'left'
-            ctx.fillText(receiverName, lx, ly - fontSize + 1)
-            ctx.restore()
-          }
 
           // Hit region: midpoint of the line for proximity testing
           const midX = (sx + ex) / 2
