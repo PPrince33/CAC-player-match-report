@@ -3,6 +3,7 @@ import { useMatchData } from './hooks/useMatchData.js'
 import { hasCredentials } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
+import { useT } from './utils/translations.js'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -145,7 +146,7 @@ function CompareRow({ label, valA, valB, isSection }) {
 }
 
 /** Full-width comparison table shown in compare mode — covers all action types */
-function FullComparison({ statsA, statsB, lineupA, lineupB }) {
+function FullComparison({ statsA, statsB, lineupA, lineupB, t }) {
   if (!statsA && !statsB) return null
 
   const nameA = lineupA?.player?.player_name ?? 'PLAYER 1'
@@ -156,56 +157,56 @@ function FullComparison({ statsA, statsB, lineupA, lineupB }) {
 
   const sections = [
     // ── PASSING ──────────────────────────────────────────────────────────
-    { label: 'PASSING', isSection: true },
-    { label: 'Total Passes',             key: 'totalPasses' },
-    { label: 'Completed Passes',         key: 'completePasses' },
-    { label: 'Pass Accuracy %',          valA: pct(statsA?.completePasses, statsA?.totalPasses, statsA), valB: pct(statsB?.completePasses, statsB?.totalPasses, statsB) },
-    { label: 'Progressive Passes',       key: 'progPasses' },
-    { label: 'Progressive Completed',    key: 'successProgPasses' },
-    { label: 'Long Balls',               key: 'longBalls' },
-    { label: 'Long Balls Completed',     key: 'successLongBalls' },
-    { label: 'Crosses',                  key: 'crosses' },
-    { label: 'Crosses Completed',        key: 'successCrosses' },
-    { label: 'Passes into Box',          key: 'passesIntoBox' },
-    { label: 'Key Passes',               key: 'keyPasses' },
-    { label: 'Assists',                  key: 'assists' },
-    { label: 'Incomplete Passes',        key: 'incompletePasses' },
-    { label: 'Passes in Own Half',       key: 'ownHalfPasses' },
-    { label: 'Passes in Opp. Half',      key: 'oppHalfPasses' },
+    { label: t('cmpPassing'), isSection: true },
+    { label: t('cmpTotalPasses'),         key: 'totalPasses' },
+    { label: t('cmpCompletedPasses'),     key: 'completePasses' },
+    { label: t('cmpPassAccuracy'),        valA: pct(statsA?.completePasses, statsA?.totalPasses, statsA), valB: pct(statsB?.completePasses, statsB?.totalPasses, statsB) },
+    { label: t('cmpProgPasses'),          key: 'progPasses' },
+    { label: t('cmpProgCompleted'),       key: 'successProgPasses' },
+    { label: t('cmpLongBalls'),           key: 'longBalls' },
+    { label: t('cmpLongBallsCompleted'),  key: 'successLongBalls' },
+    { label: t('cmpCrosses'),             key: 'crosses' },
+    { label: t('cmpCrossesCompleted'),    key: 'successCrosses' },
+    { label: t('cmpPassesIntoBox'),       key: 'passesIntoBox' },
+    { label: t('cmpKeyPasses'),           key: 'keyPasses' },
+    { label: t('cmpAssists'),             key: 'assists' },
+    { label: t('cmpIncompletePasses'),    key: 'incompletePasses' },
+    { label: t('cmpOwnHalf'),             key: 'ownHalfPasses' },
+    { label: t('cmpOppHalf'),             key: 'oppHalfPasses' },
 
     // ── ATTACKING / SHOOTING ─────────────────────────────────────────────
-    { label: 'ATTACKING & SHOOTING', isSection: true },
-    { label: 'Goals',                    key: 'goals' },
-    { label: 'Total Shots',              key: 'totalShots' },
-    { label: 'Shots on Target',          key: 'shotsOnTarget' },
-    { label: 'xG (Expected Goals)',      key: 'totalXG' },
-    { label: 'xGOT (xG on Target)',      key: 'totalXGOT' },
-    { label: 'Conversion Rate %',        valA: statsA?.totalShots > 0 ? Math.round(((statsA.goals ?? 0) / statsA.totalShots) * 100) + '%' : (statsA ? '0%' : '—'), valB: statsB?.totalShots > 0 ? Math.round(((statsB.goals ?? 0) / statsB.totalShots) * 100) + '%' : (statsB ? '0%' : '—') },
+    { label: t('cmpAttacking'), isSection: true },
+    { label: t('cmpGoals'),               key: 'goals' },
+    { label: t('cmpTotalShots'),          key: 'totalShots' },
+    { label: t('cmpShotsOnTarget'),       key: 'shotsOnTarget' },
+    { label: t('cmpXg'),                  key: 'totalXG' },
+    { label: t('cmpXgot'),                key: 'totalXGOT' },
+    { label: t('cmpConversion'),          valA: statsA?.totalShots > 0 ? Math.round(((statsA.goals ?? 0) / statsA.totalShots) * 100) + '%' : (statsA ? '0%' : '—'), valB: statsB?.totalShots > 0 ? Math.round(((statsB.goals ?? 0) / statsB.totalShots) * 100) + '%' : (statsB ? '0%' : '—') },
 
     // ── DRIBBLING & CARRIES ──────────────────────────────────────────────
-    { label: 'DRIBBLING & CARRIES', isSection: true },
-    { label: 'Dribbles Attempted',       key: 'dribbles' },
-    { label: 'Dribbles Successful',      key: 'succDribbles' },
-    { label: 'Dribble Success %',        valA: pct(statsA?.succDribbles, statsA?.dribbles, statsA), valB: pct(statsB?.succDribbles, statsB?.dribbles, statsB) },
-    { label: 'Carries into Final 3rd',   key: 'carriesIntoFT' },
-    { label: 'Carries into Box',         key: 'carriesIntoBox' },
-    { label: 'Ball Controls',            key: 'ballControl' },
+    { label: t('cmpDribbling'), isSection: true },
+    { label: t('cmpDribblesAttempted'),   key: 'dribbles' },
+    { label: t('cmpDribblesSuccessful'),  key: 'succDribbles' },
+    { label: t('cmpDribbleSuccess'),      valA: pct(statsA?.succDribbles, statsA?.dribbles, statsA), valB: pct(statsB?.succDribbles, statsB?.dribbles, statsB) },
+    { label: t('cmpCarriesFinal3rd'),     key: 'carriesIntoFT' },
+    { label: t('cmpCarriesBox'),          key: 'carriesIntoBox' },
+    { label: t('cmpBallControls'),        key: 'ballControl' },
 
     // ── DEFENSIVE ────────────────────────────────────────────────────────
-    { label: 'DEFENSIVE', isSection: true },
-    { label: 'Total Tackles',            key: 'tackles' },
-    { label: 'Tackles Won',              key: 'succTackles' },
-    { label: 'Tackles with Possession',  key: 'tackleRegain' },
-    { label: 'Tackle Success %',         valA: pct(statsA?.succTackles, statsA?.tackles, statsA), valB: pct(statsB?.succTackles, statsB?.tackles, statsB) },
-    { label: 'Interceptions',            key: 'interceptions' },
-    { label: 'Interceptions (Regained)', key: 'intRegain' },
-    { label: 'Aerial Duels Won',         key: 'aerialDuels' },
-    { label: 'Blocks',                   key: 'blocks' },
-    { label: 'Clearances',               key: 'clearances' },
-    { label: 'Pressures Applied',        key: 'pressures' },
-    { label: 'Saves',                    key: 'saves' },
+    { label: t('cmpDefensive'), isSection: true },
+    { label: t('cmpTotalTackles'),        key: 'tackles' },
+    { label: t('cmpTacklesWon'),          key: 'succTackles' },
+    { label: t('cmpTacklesPossession'),   key: 'tackleRegain' },
+    { label: t('cmpTackleSuccess'),       valA: pct(statsA?.succTackles, statsA?.tackles, statsA), valB: pct(statsB?.succTackles, statsB?.tackles, statsB) },
+    { label: t('cmpInterceptions'),       key: 'interceptions' },
+    { label: t('cmpInterceptionsRegained'), key: 'intRegain' },
+    { label: t('cmpAerialDuels'),         key: 'aerialDuels' },
+    { label: t('cmpBlocks'),              key: 'blocks' },
+    { label: t('cmpClearances'),          key: 'clearances' },
+    { label: t('cmpPressures'),           key: 'pressures' },
+    { label: t('cmpSaves'),               key: 'saves' },
     {
-      label: 'Total Defensive Actions',
+      label: t('cmpTotalDefActions'),
       valA: statsA ? (statsA.tackles ?? 0) + (statsA.interceptions ?? 0) + (statsA.blocks ?? 0) + (statsA.clearances ?? 0) : '—',
       valB: statsB ? (statsB.tackles ?? 0) + (statsB.interceptions ?? 0) + (statsB.blocks ?? 0) + (statsB.clearances ?? 0) : '—',
     },
@@ -243,6 +244,8 @@ export default function App() {
   const [playerA, setPlayerA] = useState(null)
   const [playerB, setPlayerB] = useState(null)
   const [downloading, setDownloading] = useState(false)
+  const [lang, setLang] = useState('en')
+  const t = useT(lang)
   const reportRefA = useRef(null)
   const reportRefB = useRef(null)
 
@@ -305,19 +308,19 @@ export default function App() {
 
       {/* ── Top nav ─────────────────────────────────────────── */}
       <nav style={S.navBar}>
-        <span style={S.navTitle}>CAC PLAYER REPORT</span>
-        <button style={S.modeBtn(mode === 'single')} onClick={() => setMode('single')}>SINGLE</button>
-        <button style={S.modeBtn(mode === 'compare')} onClick={() => setMode('compare')}>COMPARE</button>
+        <span style={S.navTitle}>{t('appTitle')}</span>
+        <button style={S.modeBtn(mode === 'single')} onClick={() => setMode('single')}>{t('single')}</button>
+        <button style={S.modeBtn(mode === 'compare')} onClick={() => setMode('compare')}>{t('compare')}</button>
         {mode === 'compare' && (
           <span style={{ fontSize: 10, color: '#888', marginLeft: 12, fontFamily: 'var(--font)', letterSpacing: 1 }}>
             {playerA && lineups.find(l => l.player_id === playerA)?.player?.player_name
               ? <span style={{ color: '#6ec6ff' }}>{lineups.find(l => l.player_id === playerA).player.player_name}</span>
-              : <span style={{ color: '#555' }}>SELECT PLAYER 1</span>
+              : <span style={{ color: '#555' }}>{t('selectPlayer1')}</span>
             }
-            {' '}<span style={{ color: '#555' }}>vs</span>{' '}
+            {' '}<span style={{ color: '#555' }}>{t('vs')}</span>{' '}
             {playerB && lineups.find(l => l.player_id === playerB)?.player?.player_name
               ? <span style={{ color: '#ff8888' }}>{lineups.find(l => l.player_id === playerB).player.player_name}</span>
-              : <span style={{ color: '#555' }}>SELECT PLAYER 2</span>
+              : <span style={{ color: '#555' }}>{t('selectPlayer2')}</span>
             }
           </span>
         )}
@@ -327,6 +330,21 @@ export default function App() {
             {match.match_name} · {match.match_date}
           </span>
         )}
+        {/* Language toggle */}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 16 }}>
+          {['en', 'pl'].map(l => (
+            <button key={l} onClick={() => setLang(l)} style={{
+              fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1,
+              textTransform: 'uppercase', padding: '4px 10px',
+              background: lang === l ? '#FFD166' : 'transparent',
+              color: lang === l ? '#000' : '#888',
+              border: `2px solid ${lang === l ? '#FFD166' : '#444'}`,
+              cursor: 'pointer',
+            }}>
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </nav>
 
       <div style={{ display: 'flex', flex: 1 }}>
@@ -355,7 +373,7 @@ export default function App() {
 
           {!loading && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {starters.length > 0 && <div style={S.sectionLabel}>STARTING XI</div>}
+              {starters.length > 0 && <div style={S.sectionLabel}>{t('startingXi')}</div>}
               {starters.map(p => {
                 const col = getRowColor(p.player_id)
                 return (
@@ -365,12 +383,12 @@ export default function App() {
                       {p.player?.player_name ?? 'Unknown'}
                     </span>
                     {!allStats[p.player_id] && (
-                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>NO DATA</span>
+                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
                     )}
                   </div>
                 )
               })}
-              {subs.length > 0 && <div style={S.sectionLabel}>SUBSTITUTES</div>}
+              {subs.length > 0 && <div style={S.sectionLabel}>{t('substitutes')}</div>}
               {subs.map(p => {
                 const col = getRowColor(p.player_id)
                 return (
@@ -380,7 +398,7 @@ export default function App() {
                       {p.player?.player_name ?? 'Unknown'}
                     </span>
                     {!allStats[p.player_id] && (
-                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>NO DATA</span>
+                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
                     )}
                   </div>
                 )
@@ -389,7 +407,7 @@ export default function App() {
           )}
 
           <div style={{ padding: '8px 14px', borderTop: '2px solid #222', fontSize: 9, color: '#555', fontFamily: 'var(--font)', letterSpacing: 1 }}>
-            {lineups.length} PLAYERS · {Object.keys(allStats).length} WITH DATA
+            {lineups.length} {t('players')} · {Object.keys(allStats).length} {t('withData')}
           </div>
         </aside>
 
@@ -411,7 +429,7 @@ export default function App() {
                   disabled={downloading}
                   onClick={() => downloadSingle(reportRefA, lineupA)}
                 >
-                  {downloading ? 'GENERATING…' : '⬇ DOWNLOAD PDF'}
+                  {downloading ? t('generating') : t('downloadPdf')}
                 </button>
               </div>
               <PlayerReport
@@ -421,6 +439,7 @@ export default function App() {
                 matchInfo={match}
                 lineup={lineups}
                 allStats={allStats}
+                lang={lang}
               />
             </>
           )}
@@ -443,17 +462,17 @@ export default function App() {
                       {lineup && stats && (
                         <button style={{ ...S.downloadBtn(downloading), background: '#fff', color: '#000' }}
                           onClick={() => downloadSingle(ref, lineup)} disabled={downloading}>
-                          ⬇ PDF
+                          {t('pdf')}
                         </button>
                       )}
                     </div>
                     {lineup && stats
-                      ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} compareColor={color} compact />
+                      ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} compareColor={color} compact lang={lang} />
                       : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, flexDirection: 'column', gap: 12, opacity: 0.4 }}>
                           <div style={{ fontSize: 36 }}>⚽</div>
                           <div style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
-                            SELECT {label}
+                            {label === 'PLAYER 1' ? t('selectPlayer1') : t('selectPlayer2')}
                           </div>
                         </div>
                       )
@@ -463,25 +482,25 @@ export default function App() {
               </div>
 
               {/* Full-width stats comparison table */}
-              <FullComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} />
+              <FullComparison statsA={statsA} statsB={statsB} lineupA={lineupA} lineupB={lineupB} t={t} />
 
               {/* Side-by-side heatmaps */}
               {(statsA || statsB) && (
                 <div style={{ borderTop: BT }}>
                   <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
-                    TOUCH HEATMAP
+                    {t('modHeatmap')}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                     <div style={{ borderRight: BT, padding: 12 }}>
                       {statsA
                         ? <HeatMap events={statsA.allEvents ?? []} teamColor="#0277B6" />
-                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO DATA</div>
+                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noData')}</div>
                       }
                     </div>
                     <div style={{ padding: 12 }}>
                       {statsB
                         ? <HeatMap events={statsB.allEvents ?? []} teamColor="#D90429" />
-                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO DATA</div>
+                        : <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noData')}</div>
                       }
                     </div>
                   </div>
@@ -495,7 +514,7 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 48px)', gap: 16 }}>
               <div style={{ fontSize: 56 }}>⚽</div>
               <div style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 16, letterSpacing: 3, textTransform: 'uppercase' }}>
-                {loading ? 'LOADING MATCH DATA…' : mode === 'compare' ? 'SELECT TWO PLAYERS TO COMPARE' : 'SELECT A PLAYER'}
+                {loading ? t('loadingMatch') : mode === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
               </div>
               {!loading && match && (
                 <div style={{ fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.4 }}>

@@ -5,8 +5,10 @@ import FutsalDistributionPitch from './FutsalDistributionPitch.jsx'
 import ShotMapPitch from './ShotMapPitch.jsx'
 import HighlightTab from './HighlightTab.jsx'
 import { buildRadarData } from '../utils/stats.js'
+import { useT } from '../utils/translations.js'
 
-const TABS = ['OVERVIEW', 'PASSING & VISION', 'DEFENSIVE', 'HEATMAPS', 'HIGHLIGHTS']
+const TAB_KEYS = ['tabOverview', 'tabPassing', 'tabDefensive', 'tabHeatmaps', 'tabHighlights']
+const TAB_IDS  = ['OVERVIEW', 'PASSING & VISION', 'DEFENSIVE', 'HEATMAPS', 'HIGHLIGHTS']
 
 const B  = '2px solid #000'
 const BT = '3px solid #000'
@@ -87,9 +89,10 @@ function PercentBar({ label, made, total, color = '#0277B6' }) {
 }
 
 const PlayerReport = forwardRef(function PlayerReport(
-  { player, stats, matchInfo, lineup, allStats, compareColor, compact },
+  { player, stats, matchInfo, lineup, allStats, compareColor, compact, lang = 'en' },
   ref
 ) {
+  const t = useT(lang)
   const [tab, setTab] = useState('OVERVIEW')
 
   if (!player || !stats) return null
@@ -124,10 +127,10 @@ const PlayerReport = forwardRef(function PlayerReport(
             padding: '10px 8px', borderRight: BT,
           }}>
             <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{jerseyNumber}</div>
-            <div style={{ fontSize: 7, letterSpacing: 1, marginTop: 3, opacity: 0.85, textTransform: 'uppercase' }}>NO.</div>
+            <div style={{ fontSize: 7, letterSpacing: 1, marginTop: 3, opacity: 0.85, textTransform: 'uppercase' }}>{t('no')}</div>
           </div>
           <div style={{ flex: 1, padding: '8px 12px' }}>
-            <div style={{ fontSize: 7, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 2, fontWeight: 700 }}>PLAYER MATCH REPORT</div>
+            <div style={{ fontSize: 7, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 2, fontWeight: 700 }}>{t('playerMatchReport')}</div>
             <div style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, lineHeight: 1.1 }}>{playerName}</div>
             <div style={{ fontSize: 9, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{position}</span>
@@ -137,13 +140,13 @@ const PlayerReport = forwardRef(function PlayerReport(
           {matchInfo?.home_team_score != null && (
             <div style={{ borderLeft: BT, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 64 }}>
               <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2 }}>{matchInfo.home_team_score}–{matchInfo.away_team_score}</div>
-              <div style={{ fontSize: 7, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>SCORE</div>
+              <div style={{ fontSize: 7, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>{t('score')}</div>
             </div>
           )}
         </div>
 
         {/* Radar */}
-        <Module title="PERFORMANCE RADAR">
+        <Module title={t('modRadar')}>
           <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
         </Module>
       </div>
@@ -162,10 +165,10 @@ const PlayerReport = forwardRef(function PlayerReport(
           padding: '12px 8px', borderRight: BT,
         }}>
           <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{jerseyNumber}</div>
-          <div style={{ fontSize: 8, letterSpacing: 1, marginTop: 4, opacity: 0.85, textTransform: 'uppercase' }}>NO.</div>
+          <div style={{ fontSize: 8, letterSpacing: 1, marginTop: 4, opacity: 0.85, textTransform: 'uppercase' }}>{t('no')}</div>
         </div>
         <div style={{ flex: 1, padding: '10px 14px' }}>
-          <div style={{ fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 3, fontWeight: 700 }}>PLAYER MATCH REPORT</div>
+          <div style={{ fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.5, marginBottom: 3, fontWeight: 700 }}>{t('playerMatchReport')}</div>
           <div style={{ fontSize: 24, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, lineHeight: 1.1 }}>{playerName}</div>
           <div style={{ fontSize: 10, marginTop: 5, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{position}</span>
@@ -176,7 +179,7 @@ const PlayerReport = forwardRef(function PlayerReport(
         {matchInfo?.home_team_score != null && (
           <div style={{ borderLeft: BT, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 }}>
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 3 }}>{matchInfo.home_team_score}–{matchInfo.away_team_score}</div>
-            <div style={{ fontSize: 8, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>SCORE</div>
+            <div style={{ fontSize: 8, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>{t('score')}</div>
           </div>
         )}
       </div>
@@ -184,12 +187,12 @@ const PlayerReport = forwardRef(function PlayerReport(
       {/* ── KPI Hero Stats ────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 12, border: BT }}>
         {[
-          { label: 'PASSES',    value: stats.totalPasses ?? 0,   sub: `${stats.passAccuracy ?? 0}% ACC` },
-          { label: 'GOALS',     value: stats.goals ?? 0,          sub: `xG ${stats.totalXG ?? 0}` },
-          { label: 'ASSISTS',   value: stats.assists ?? 0,        sub: `${stats.keyPasses ?? 0} KEY PASS` },
-          { label: 'TACKLES',   value: stats.tackles ?? 0,       sub: `${stats.succTackles ?? 0} WON` },
-          { label: 'INTERCEPT', value: stats.interceptions ?? 0, sub: null },
-          { label: 'DRIBBLES',  value: stats.dribbles ?? 0,      sub: `${stats.dribbleRate ?? 0}% SUCC` },
+          { label: t('kpiPasses'),    value: stats.totalPasses ?? 0,   sub: `${stats.passAccuracy ?? 0}% ${t('kpiAcc')}` },
+          { label: t('kpiGoals'),     value: stats.goals ?? 0,          sub: `xG ${stats.totalXG ?? 0}` },
+          { label: t('kpiAssists'),   value: stats.assists ?? 0,        sub: `${stats.keyPasses ?? 0} ${t('kpiKeyPass')}` },
+          { label: t('kpiTackles'),   value: stats.tackles ?? 0,       sub: `${stats.succTackles ?? 0} ${t('kpiWon')}` },
+          { label: t('kpiIntercept'), value: stats.interceptions ?? 0, sub: null },
+          { label: t('kpiDribbles'),  value: stats.dribbles ?? 0,      sub: `${stats.dribbleRate ?? 0}% ${t('kpiSucc')}` },
         ].map(({ label, value, sub }, i) => (
           <div key={label} style={{ borderRight: i < 5 ? B : 'none', display: 'flex' }}>
             <KPI label={label} value={value} sub={sub} />
@@ -199,16 +202,16 @@ const PlayerReport = forwardRef(function PlayerReport(
 
       {/* ── Tab Nav ───────────────────────────────────────────── */}
       <div style={{ display: 'flex', borderBottom: BT, overflowX: 'auto' }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(t)} style={{
+        {TAB_IDS.map((id, i) => (
+          <button key={id} onClick={() => setTab(id)} style={{
             fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1.5,
             textTransform: 'uppercase', padding: '8px 14px', whiteSpace: 'nowrap',
-            background: tab === t ? '#FFD166' : '#fff', color: '#000',
-            border: 'none', borderRight: i < TABS.length - 1 ? B : 'none',
-            borderBottom: tab === t ? '3px solid #FFD166' : '3px solid transparent',
+            background: tab === id ? '#FFD166' : '#fff', color: '#000',
+            border: 'none', borderRight: i < TAB_IDS.length - 1 ? B : 'none',
+            borderBottom: tab === id ? '3px solid #FFD166' : '3px solid transparent',
             cursor: 'pointer',
           }}>
-            {t}
+            {t(TAB_KEYS[i])}
           </button>
         ))}
       </div>
@@ -220,26 +223,26 @@ const PlayerReport = forwardRef(function PlayerReport(
         {tab === 'OVERVIEW' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
             <div style={{ borderRight: B }}>
-              <Module title="PERFORMANCE RADAR">
+              <Module title={t('modRadar')}>
                 <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
               </Module>
             </div>
             <div>
-              <Module title="SHOOTING">
-                <StatRow label="Total Shots"      value={stats.totalShots ?? 0} />
-                <StatRow label="Shots on Target"  value={stats.shotsOnTarget ?? 0} accent />
-                <StatRow label="Goals"            value={stats.goals ?? 0} accent />
-                <StatRow label="xG"               value={stats.totalXG ?? 0}   sub="expected goals" accent />
-                <StatRow label="xGOT"             value={stats.totalXGOT ?? 0} sub="xg on target" />
+              <Module title={t('modShooting')}>
+                <StatRow label={t('totalShots')}     value={stats.totalShots ?? 0} />
+                <StatRow label={t('shotsOnTarget')}  value={stats.shotsOnTarget ?? 0} accent />
+                <StatRow label={t('goals')}          value={stats.goals ?? 0} accent />
+                <StatRow label={t('xg')}             value={stats.totalXG ?? 0}   sub={t('xgSub')} accent />
+                <StatRow label={t('xgot')}           value={stats.totalXGOT ?? 0} sub={t('xgotSub')} />
                 {(stats.totalShots ?? 0) > 0 && (
-                  <StatRow label="Conversion Rate" value={`${Math.round(((stats.goals ?? 0) / stats.totalShots) * 100)}%`} />
+                  <StatRow label={t('conversionRate')} value={`${Math.round(((stats.goals ?? 0) / stats.totalShots) * 100)}%`} />
                 )}
               </Module>
-              <Module title="DRIBBLING & CARRIES">
-                <PercentBar label="Dribbles" made={stats.succDribbles ?? 0} total={stats.dribbles ?? 0} color={accentColor} />
-                <StatRow label="Carries into Final 3rd" value={stats.carriesIntoFT ?? 0} accent />
-                <StatRow label="Carries into Box"       value={stats.carriesIntoBox ?? 0} accent />
-                <StatRow label="Ball Controls"          value={stats.ballControl ?? 0} />
+              <Module title={t('modDribbling')}>
+                <PercentBar label={t('dribbles')}       made={stats.succDribbles ?? 0} total={stats.dribbles ?? 0} color={accentColor} />
+                <StatRow label={t('carriesFinal3rd')}   value={stats.carriesIntoFT ?? 0} accent />
+                <StatRow label={t('carriesBox')}        value={stats.carriesIntoBox ?? 0} accent />
+                <StatRow label={t('ballControls')}      value={stats.ballControl ?? 0} />
               </Module>
             </div>
           </div>
@@ -249,28 +252,28 @@ const PlayerReport = forwardRef(function PlayerReport(
         {tab === 'PASSING & VISION' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
             <div style={{ borderRight: B }}>
-              <Module title="PASSING">
-                <StatRow label="Total Passes" value={stats.totalPasses ?? 0} accent />
-                <PercentBar label="Pass Accuracy"      made={stats.completePasses ?? 0}        total={stats.totalPasses ?? 0}  color={accentColor} />
-                <PercentBar label="Progressive Passes" made={stats.successProgPasses ?? 0}     total={stats.progPasses ?? 0}   color="#09D69F" />
-                <PercentBar label="Long Balls"         made={stats.successLongBalls ?? 0}      total={stats.longBalls ?? 0}    color="#888" />
-                <PercentBar label="Crosses"            made={stats.successCrosses ?? 0}        total={stats.crosses ?? 0}      color={accentColor} />
-                <PercentBar label="Passes into Box"    made={stats.successPassesIntoBox ?? 0}  total={stats.passesIntoBox ?? 0} color="#FFD166" />
+              <Module title={t('modPassing')}>
+                <StatRow label={t('totalPasses')}       value={stats.totalPasses ?? 0} accent />
+                <PercentBar label={t('passAccuracy')}       made={stats.completePasses ?? 0}       total={stats.totalPasses ?? 0}  color={accentColor} />
+                <PercentBar label={t('progressivePasses')}  made={stats.successProgPasses ?? 0}    total={stats.progPasses ?? 0}   color="#09D69F" />
+                <PercentBar label={t('longBalls')}          made={stats.successLongBalls ?? 0}     total={stats.longBalls ?? 0}    color="#888" />
+                <PercentBar label={t('crosses')}            made={stats.successCrosses ?? 0}       total={stats.crosses ?? 0}      color={accentColor} />
+                <PercentBar label={t('passesIntoBox')}      made={stats.successPassesIntoBox ?? 0} total={stats.passesIntoBox ?? 0} color="#FFD166" />
               </Module>
-              <Module title="CREATIVE">
-                <StatRow label="Key Passes"          value={stats.keyPasses ?? 0} accent />
-                <StatRow label="Assists"             value={stats.assists ?? 0}   accent />
-                <StatRow label="Passes in Own Half"  value={stats.ownHalfPasses ?? 0} />
-                <StatRow label="Passes in Opp. Half" value={stats.oppHalfPasses ?? 0} />
-                <StatRow label="Incomplete Passes"   value={stats.incompletePasses ?? 0} />
+              <Module title={t('modCreative')}>
+                <StatRow label={t('keyPasses')}         value={stats.keyPasses ?? 0} accent />
+                <StatRow label={t('assists')}           value={stats.assists ?? 0}   accent />
+                <StatRow label={t('passesOwnHalf')}     value={stats.ownHalfPasses ?? 0} />
+                <StatRow label={t('passesOppHalf')}     value={stats.oppHalfPasses ?? 0} />
+                <StatRow label={t('incompletePasses')}  value={stats.incompletePasses ?? 0} />
               </Module>
             </div>
             <div>
               {hasPassEvents
-                ? <Module title="PASS MAP" style={{ height: '100%' }}>
+                ? <Module title={t('modPassMap')} style={{ height: '100%' }}>
                     <FutsalDistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
                   </Module>
-                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO PASS DATA</div>
+                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noPassData')}</div>
               }
             </div>
           </div>
@@ -280,27 +283,27 @@ const PlayerReport = forwardRef(function PlayerReport(
         {tab === 'DEFENSIVE' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
             <div style={{ borderRight: B }}>
-              <Module title="TACKLING">
-                <StatRow label="Total Tackles"            value={stats.tackles ?? 0} />
-                <StatRow label="Successful"               value={stats.succTackles ?? 0} accent />
-                <StatRow label="With Possession"          value={stats.tackleRegain ?? 0} accent />
-                <PercentBar label="Success Rate" made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
+              <Module title={t('modTackling')}>
+                <StatRow label={t('totalTackles')}          value={stats.tackles ?? 0} />
+                <StatRow label={t('successful')}            value={stats.succTackles ?? 0} accent />
+                <StatRow label={t('withPossession')}        value={stats.tackleRegain ?? 0} accent />
+                <PercentBar label={t('successRate')} made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
               </Module>
-              <Module title="INTERCEPTIONS">
-                <StatRow label="Total Interceptions"      value={stats.interceptions ?? 0} accent />
-                <StatRow label="With Possession Regained" value={stats.intRegain ?? 0} accent />
+              <Module title={t('modInterceptions')}>
+                <StatRow label={t('totalInterceptions')}        value={stats.interceptions ?? 0} accent />
+                <StatRow label={t('withPossessionRegained')}    value={stats.intRegain ?? 0} accent />
               </Module>
-              <Module title="DUELS & PRESSURE">
-                <StatRow label="Aerial Duels Won"  value={stats.aerialDuels ?? 0} accent />
-                <StatRow label="Pressures Applied" value={stats.pressures ?? 0} />
-                <StatRow label="Blocks"            value={stats.blocks ?? 0} />
-                <StatRow label="Clearances"        value={stats.clearances ?? 0} />
+              <Module title={t('modDuels')}>
+                <StatRow label={t('aerialDuelsWon')}   value={stats.aerialDuels ?? 0} accent />
+                <StatRow label={t('pressuresApplied')} value={stats.pressures ?? 0} />
+                <StatRow label={t('blocks')}           value={stats.blocks ?? 0} />
+                <StatRow label={t('clearances')}       value={stats.clearances ?? 0} />
               </Module>
             </div>
             <div>
-              <Module title="DEFENSIVE SUMMARY">
-                <StatRow label="Total Defensive Actions" value={(stats.tackles ?? 0) + (stats.interceptions ?? 0) + (stats.blocks ?? 0) + (stats.clearances ?? 0)} accent />
-                <StatRow label="Saves" value={stats.saves ?? 0} />
+              <Module title={t('modDefSummary')}>
+                <StatRow label={t('totalDefActions')} value={(stats.tackles ?? 0) + (stats.interceptions ?? 0) + (stats.blocks ?? 0) + (stats.clearances ?? 0)} accent />
+                <StatRow label={t('saves')} value={stats.saves ?? 0} />
               </Module>
             </div>
           </div>
@@ -310,16 +313,16 @@ const PlayerReport = forwardRef(function PlayerReport(
         {tab === 'HEATMAPS' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
             <div style={{ borderRight: B }}>
-              <Module title="TOUCH HEATMAP">
+              <Module title={t('modHeatmap')}>
                 <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
               </Module>
             </div>
             <div>
               {hasShotEvents
-                ? <Module title="SHOT MAP">
+                ? <Module title={t('modShotMap')}>
                     <ShotMapPitch shots={stats.shotEvents} />
                   </Module>
-                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>NO SHOTS</div>
+                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noShots')}</div>
               }
             </div>
           </div>
