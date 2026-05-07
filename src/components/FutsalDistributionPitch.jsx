@@ -106,80 +106,68 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
     fields: [],
   })
 
-  // Store latest draw dimensions for hit-testing coordinate mapping
-  const drawDimsRef = useRef({ w: 0, h: 0 })
+  // Store latest canvas logical size so we can redraw without a resize event
+  const sizeRef = useRef({ w: 0, h: 0 })
 
+  // ── Draw function (stable ref so both effects can call it) ────────────────
+  const drawRef = useRef(null)
+  drawRef.current = function draw(ctx, w, h) {
+    sizeRef.current = { w, h }
+    hitRegionsRef.current = []
+
+    drawPitch(ctx, w, h, pitchMode)
+
+    if (!events || events.length === 0) return
+
+    events.forEach((event) => {
+      const isSuccess = SUCCESS_OUTCOMES.includes(event.outcome)
+      const color = isSuccess ? COLOR_SUCCESS : COLOR_FAIL
+
+      const { px: sx, py: sy } = mapCoords(event.start_x, event.start_y, w, h)
+      const hasEnd = event.end_x != null && event.end_y != null
+
+      const receiverName =
+        event.receiver_player_name ??
+        event.pass_recipient_name ??
+        (event.receiver_player_id ? playerMap[event.receiver_player_id] : null) ??
+        (event.secondary_player_id ? playerMap[event.secondary_player_id] : null) ??
+        inferReceiver(event, allTeamEvents, playerMap)
+
+      if (hasEnd) {
+        const { px: ex, py: ey } = mapCoords(event.end_x, event.end_y, w, h)
+        ctx.save()
+        ctx.globalAlpha = isSuccess ? 1.0 : 0.5
+        ctx.strokeStyle = color
+        ctx.fillStyle = color
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(sx, sy)
+        ctx.lineTo(ex, ey)
+        ctx.stroke()
+        drawArrowhead(ctx, sx, sy, ex, ey)
+        ctx.restore()
+        const midX = (sx + ex) / 2
+        const midY = (sy + ey) / 2
+        hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event, receiverName })
+        hitRegionsRef.current.push({ cx: ex, cy: ey, eventData: event, receiverName })
+      } else {
+        ctx.save()
+        ctx.globalAlpha = isSuccess ? 1.0 : 0.5
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+        hitRegionsRef.current.push({ cx: sx, cy: sy, eventData: event })
+      }
+    })
+  }
+
+  // ── Effect 1: track canvas size via ResizeObserver ────────────────────────
   useEffect(() => {
     const container = containerRef.current
     const canvas = canvasRef.current
     if (!container || !canvas) return
-
-    function draw(ctx, w, h) {
-      drawDimsRef.current = { w, h }
-      hitRegionsRef.current = []
-
-      // Draw the pitch background and markings
-      drawPitch(ctx, w, h, pitchMode)
-
-      // Overlay events
-      if (!events || events.length === 0) return
-
-      events.forEach((event) => {
-        const isSuccess = SUCCESS_OUTCOMES.includes(event.outcome)
-        const color = isSuccess ? COLOR_SUCCESS : COLOR_FAIL
-
-        const { px: sx, py: sy } = mapCoords(event.start_x, event.start_y, w, h)
-
-        const hasEnd = event.end_x != null && event.end_y != null
-
-        // Resolve receiver: direct DB field → ID lookup → spatial/temporal inference
-        const receiverName =
-          event.receiver_player_name ??
-          event.pass_recipient_name ??
-          (event.receiver_player_id ? playerMap[event.receiver_player_id] : null) ??
-          (event.secondary_player_id ? playerMap[event.secondary_player_id] : null) ??
-          inferReceiver(event, allTeamEvents, playerMap)
-
-        if (hasEnd) {
-          const { px: ex, py: ey } = mapCoords(event.end_x, event.end_y, w, h)
-
-          ctx.save()
-          ctx.globalAlpha = isSuccess ? 1.0 : 0.5
-          ctx.strokeStyle = color
-          ctx.fillStyle = color
-          ctx.lineWidth = 1.5
-
-          // Draw line
-          ctx.beginPath()
-          ctx.moveTo(sx, sy)
-          ctx.lineTo(ex, ey)
-          ctx.stroke()
-
-          // Draw arrowhead at end point
-          drawArrowhead(ctx, sx, sy, ex, ey)
-
-          ctx.restore()
-
-
-          // Hit region: midpoint of the line for proximity testing
-          const midX = (sx + ex) / 2
-          const midY = (sy + ey) / 2
-          hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event, receiverName })
-          hitRegionsRef.current.push({ cx: ex, cy: ey, eventData: event, receiverName })
-        } else {
-          // No end coords — draw circle only
-          ctx.save()
-          ctx.globalAlpha = isSuccess ? 1.0 : 0.5
-          ctx.fillStyle = color
-          ctx.beginPath()
-          ctx.arc(sx, sy, 4, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.restore()
-
-          hitRegionsRef.current.push({ cx: sx, cy: sy, eventData: event })
-        }
-      })
-    }
 
     const observer = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width
@@ -197,12 +185,28 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.scale(dpr, dpr)
-      draw(ctx, w, h)
+      drawRef.current(ctx, w, h)
     })
 
     observer.observe(container)
     return () => observer.disconnect()
-  }, [pitchMode, events])
+  }, [pitchMode]) // only re-observe when pitch mode changes
+
+  // ── Effect 2: redraw when events change (size already known) ─────────────
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const { w, h } = sizeRef.current
+    if (w === 0 || h === 0) return   // canvas not measured yet; ResizeObserver will draw
+
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = w * dpr
+    canvas.height = h * dpr
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.scale(dpr, dpr)
+    drawRef.current(ctx, w, h)
+  }, [events])
 
   function handleMouseMove(e) {
     const canvas = canvasRef.current

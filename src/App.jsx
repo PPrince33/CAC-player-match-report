@@ -4,6 +4,7 @@ import { hasCredentials } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
 import { useT } from './utils/translations.js'
+import PassNetwork from './components/PassNetwork.jsx'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -509,16 +510,33 @@ export default function App() {
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Empty state — pass network */}
           {((mode === 'single' && !lineupA) || (mode === 'compare' && !lineupA && !lineupB)) && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 48px)', gap: 16 }}>
-              <div style={{ fontSize: 56 }}>⚽</div>
-              <div style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 16, letterSpacing: 3, textTransform: 'uppercase' }}>
-                {loading ? t('loadingMatch') : mode === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
+            <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
+              {/* Header */}
+              <div style={{ marginBottom: 16, textAlign: 'center' }}>
+                <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 16, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>
+                  {loading ? t('loadingMatch') : mode === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
+                </div>
+                {!loading && match && (
+                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.4 }}>
+                    {match.match_name} · {match.match_date}
+                  </div>
+                )}
               </div>
-              {!loading && match && (
-                <div style={{ fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.4 }}>
-                  {match.match_name} · {match.match_date}
+
+              {/* Pass network */}
+              {!loading && Object.keys(allStats).length > 0 && (
+                <div style={{ border: BT }}>
+                  <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
+                    TEAM PASS NETWORK — {match?.match_name ?? ''}
+                  </div>
+                  <div style={{ padding: 12 }}>
+                    <PassNetwork allStats={allStats} lineups={lineups} />
+                  </div>
+                  <div style={{ padding: '6px 14px', borderTop: BT, fontFamily: FONT, fontSize: 9, letterSpacing: 1, opacity: 0.5, textTransform: 'uppercase' }}>
+                    Node size = pass volume · Line thickness = pass frequency · Select a player from the sidebar
+                  </div>
                 </div>
               )}
             </div>
