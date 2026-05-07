@@ -5,15 +5,28 @@ import { calcPlayerStats } from '../utils/stats.js'
 export const MATCH_ID = '76818172-d262-4503-936d-603700d82576'
 export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
 
-function normaliseDirection(ev) {
-  if (ev.team_direction !== 'R2L') return ev
+function flipEvent(ev) {
   return {
     ...ev,
-    start_x: 120 - ev.start_x,
-    start_y: 80  - ev.start_y,
-    end_x: ev.end_x != null ? 120 - ev.end_x : null,
-    end_y: ev.end_y != null ? 80  - ev.end_y : null,
+    start_x: ev.start_x != null ? 120 - ev.start_x : ev.start_x,
+    start_y: ev.start_y != null ? 80  - ev.start_y : ev.start_y,
+    end_x:   ev.end_x   != null ? 120 - ev.end_x   : null,
+    end_y:   ev.end_y   != null ? 80  - ev.end_y   : null,
   }
+}
+
+/**
+ * Normalise a player's events so they always attack L2R (start_x < 60 on avg).
+ * Strategy: compute median start_x across all events for this player.
+ * If median > 60 the player was playing R2L → flip all their events.
+ * This works regardless of whatever value (or null) team_direction holds.
+ */
+function normalisePlayerEventsToL2R(evs) {
+  const xs = evs.map(e => e.start_x).filter(x => x != null)
+  if (xs.length === 0) return evs
+  const sorted = [...xs].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  return median > 60 ? evs.map(flipEvent) : evs
 }
 
 export function useMatchData() {
@@ -91,21 +104,20 @@ export function useMatchData() {
           eventData = proc || []
         }
 
-        // 6. Filter to MKS players only, normalise direction
+        // 6. Filter to MKS players only, group by player
         const teamPlayerIds = new Set(playerIds)
-        const teamEvents = eventData
-          .filter(ev => teamPlayerIds.has(ev.player_id))
-          .map(normaliseDirection)
-
-        // 7. Group & compute stats per player
         const byPlayer = {}
-        for (const ev of teamEvents) {
+        for (const ev of eventData) {
+          if (!teamPlayerIds.has(ev.player_id)) continue
           if (!byPlayer[ev.player_id]) byPlayer[ev.player_id] = []
           byPlayer[ev.player_id].push(ev)
         }
+
+        // 7. Normalise each player's events to L2R, then compute stats
         const stats = {}
         for (const [pid, evs] of Object.entries(byPlayer)) {
-          stats[pid] = calcPlayerStats(evs)
+          const normalised = normalisePlayerEventsToL2R(evs)
+          stats[pid] = calcPlayerStats(normalised)
         }
 
         setMatch(matchData)
