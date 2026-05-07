@@ -268,9 +268,9 @@ const PlayerReport = forwardRef(function PlayerReport(
                 <StatRow label={t('incompletePasses')}  value={stats.incompletePasses ?? 0} />
               </Module>
             </div>
-            <div>
+            <div style={{ minHeight: 300 }}>
               {hasPassEvents
-                ? <Module title={t('modPassMap')} style={{ height: '100%' }}>
+                ? <Module title={t('modPassMap')}>
                     <FutsalDistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
                   </Module>
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noPassData')}</div>

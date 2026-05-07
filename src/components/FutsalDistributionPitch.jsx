@@ -263,7 +263,7 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
   return (
     <div
       ref={containerRef}
-      style={{ position: 'relative', width: '100%' }}
+      style={{ position: 'relative', width: '100%', minHeight: 120 }}
     >
       <canvas
         ref={canvasRef}
