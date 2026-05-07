@@ -139,11 +139,15 @@ export default function PassNetwork({ allStats, lineups }) {
       }
     }
 
+    // Draw immediately with current rendered width
+    const immediateW = container.getBoundingClientRect().width
+    if (immediateW > 0) draw(immediateW, immediateW / (105 / 68))
+
+    // ResizeObserver for window resize
     const observer = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width
       if (w === 0) return
-      const h = w / (105 / 68)
-      draw(w, h)
+      draw(w, w / (105 / 68))
     })
 
     observer.observe(container)

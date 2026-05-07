@@ -10,7 +10,7 @@
  *   teamColor  {string}                — team accent color (unused for line color, kept for future use)
  *   playerName {string}                — player name shown in tooltip
  */
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { drawPitch } from '../utils/pitchRenderer.js'
 import CanvasTooltip from './CanvasTooltip.jsx'
 
@@ -94,7 +94,8 @@ function inferReceiver(passEvent, allTeamEvents, playerMap) {
 }
 
 export default function FutsalDistributionPitch({ events = [], pitchMode = 'standard', teamColor, playerName, players = [], allTeamEvents = [] }) {
-  const playerMap = buildPlayerMap(players)
+  // Stable reference — only recompute when players array changes
+  const playerMap = useMemo(() => buildPlayerMap(players), [players])
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
   const hitRegionsRef = useRef([])
@@ -106,107 +107,90 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
     fields: [],
   })
 
-  // Store latest canvas logical size so we can redraw without a resize event
-  const sizeRef = useRef({ w: 0, h: 0 })
+  const drawDimsRef = useRef({ w: 0, h: 0 })
 
-  // ── Draw function (stable ref so both effects can call it) ────────────────
-  const drawRef = useRef(null)
-  drawRef.current = function draw(ctx, w, h) {
-    sizeRef.current = { w, h }
-    hitRegionsRef.current = []
-
-    drawPitch(ctx, w, h, pitchMode)
-
-    if (!events || events.length === 0) return
-
-    events.forEach((event) => {
-      const isSuccess = SUCCESS_OUTCOMES.includes(event.outcome)
-      const color = isSuccess ? COLOR_SUCCESS : COLOR_FAIL
-
-      const { px: sx, py: sy } = mapCoords(event.start_x, event.start_y, w, h)
-      const hasEnd = event.end_x != null && event.end_y != null
-
-      const receiverName =
-        event.receiver_player_name ??
-        event.pass_recipient_name ??
-        (event.receiver_player_id ? playerMap[event.receiver_player_id] : null) ??
-        (event.secondary_player_id ? playerMap[event.secondary_player_id] : null) ??
-        inferReceiver(event, allTeamEvents, playerMap)
-
-      if (hasEnd) {
-        const { px: ex, py: ey } = mapCoords(event.end_x, event.end_y, w, h)
-        ctx.save()
-        ctx.globalAlpha = isSuccess ? 1.0 : 0.5
-        ctx.strokeStyle = color
-        ctx.fillStyle = color
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.moveTo(sx, sy)
-        ctx.lineTo(ex, ey)
-        ctx.stroke()
-        drawArrowhead(ctx, sx, sy, ex, ey)
-        ctx.restore()
-        const midX = (sx + ex) / 2
-        const midY = (sy + ey) / 2
-        hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event, receiverName })
-        hitRegionsRef.current.push({ cx: ex, cy: ey, eventData: event, receiverName })
-      } else {
-        ctx.save()
-        ctx.globalAlpha = isSuccess ? 1.0 : 0.5
-        ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.arc(sx, sy, 4, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.restore()
-        hitRegionsRef.current.push({ cx: sx, cy: sy, eventData: event })
-      }
-    })
-  }
-
-  // ── Effect 1: track canvas size via ResizeObserver ────────────────────────
   useEffect(() => {
     const container = containerRef.current
     const canvas = canvasRef.current
     if (!container || !canvas) return
 
-    const observer = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width
-      if (w === 0) return
+    const aspectRatio = pitchMode === 'futsal' ? 40 / 20 : 105 / 68
 
-      const aspectRatio = pitchMode === 'futsal' ? 40 / 20 : 105 / 68
+    function paintCanvas(w) {
+      if (w <= 0) return
       const h = w / aspectRatio
       const dpr = window.devicePixelRatio || 1
 
       canvas.width = w * dpr
       canvas.height = h * dpr
-      canvas.style.width = `${w}px`
+      canvas.style.width  = `${w}px`
       canvas.style.height = `${h}px`
 
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.scale(dpr, dpr)
-      drawRef.current(ctx, w, h)
-    })
 
+      drawDimsRef.current = { w, h }
+      hitRegionsRef.current = []
+
+      drawPitch(ctx, w, h, pitchMode)
+
+      if (!events || events.length === 0) return
+
+      events.forEach((event) => {
+        const isSuccess = SUCCESS_OUTCOMES.includes(event.outcome)
+        const color = isSuccess ? COLOR_SUCCESS : COLOR_FAIL
+
+        const { px: sx, py: sy } = mapCoords(event.start_x, event.start_y, w, h)
+        const hasEnd = event.end_x != null && event.end_y != null
+
+        const receiverName =
+          event.receiver_player_name ??
+          event.pass_recipient_name ??
+          (event.receiver_player_id ? playerMap[event.receiver_player_id] : null) ??
+          (event.secondary_player_id ? playerMap[event.secondary_player_id] : null) ??
+          inferReceiver(event, allTeamEvents, playerMap)
+
+        if (hasEnd) {
+          const { px: ex, py: ey } = mapCoords(event.end_x, event.end_y, w, h)
+          ctx.save()
+          ctx.globalAlpha = isSuccess ? 1.0 : 0.5
+          ctx.strokeStyle = color
+          ctx.fillStyle   = color
+          ctx.lineWidth   = 1.5
+          ctx.beginPath()
+          ctx.moveTo(sx, sy)
+          ctx.lineTo(ex, ey)
+          ctx.stroke()
+          drawArrowhead(ctx, sx, sy, ex, ey)
+          ctx.restore()
+          const midX = (sx + ex) / 2
+          const midY = (sy + ey) / 2
+          hitRegionsRef.current.push({ cx: midX, cy: midY, eventData: event, receiverName })
+          hitRegionsRef.current.push({ cx: ex,   cy: ey,   eventData: event, receiverName })
+        } else {
+          ctx.save()
+          ctx.globalAlpha = isSuccess ? 1.0 : 0.5
+          ctx.fillStyle   = color
+          ctx.beginPath()
+          ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+          hitRegionsRef.current.push({ cx: sx, cy: sy, eventData: event })
+        }
+      })
+    }
+
+    // Draw immediately with current container width (layout is done post-paint)
+    paintCanvas(container.getBoundingClientRect().width)
+
+    // ResizeObserver handles window resize / column width changes
+    const observer = new ResizeObserver(([entry]) => {
+      paintCanvas(entry.contentRect.width)
+    })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [pitchMode]) // only re-observe when pitch mode changes
-
-  // ── Effect 2: redraw when events change (size already known) ─────────────
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const { w, h } = sizeRef.current
-    if (w === 0 || h === 0) return   // canvas not measured yet; ResizeObserver will draw
-
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = w * dpr
-    canvas.height = h * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.scale(dpr, dpr)
-    drawRef.current(ctx, w, h)
-  }, [events])
+  }, [pitchMode, events, playerMap, allTeamEvents])
 
   function handleMouseMove(e) {
     const canvas = canvasRef.current
