@@ -1,7 +1,7 @@
 import { forwardRef, useState, useMemo } from 'react'
 import HeatMap from './HeatMap.jsx'
 import RadarChart from './RadarChart.jsx'
-import FutsalDistributionPitch from './FutsalDistributionPitch.jsx'
+import DistributionPitch from './FutsalDistributionPitch.jsx'
 import ShotMapPitch from './ShotMapPitch.jsx'
 import HighlightTab from './HighlightTab.jsx'
 import { buildRadarData } from '../utils/stats.js'
@@ -271,7 +271,7 @@ const PlayerReport = forwardRef(function PlayerReport(
             <div style={{ minHeight: 300 }}>
               {hasPassEvents
                 ? <Module title={t('modPassMap')}>
-                    <FutsalDistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
+                    <DistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
                   </Module>
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noPassData')}</div>
               }

@@ -15,18 +15,9 @@ function flipEvent(ev) {
   }
 }
 
-/**
- * Normalise a player's events so they always attack L2R (start_x < 60 on avg).
- * Strategy: compute median start_x across all events for this player.
- * If median > 60 the player was playing R2L → flip all their events.
- * This works regardless of whatever value (or null) team_direction holds.
- */
-function normalisePlayerEventsToL2R(evs) {
-  const xs = evs.map(e => e.start_x).filter(x => x != null)
-  if (xs.length === 0) return evs
-  const sorted = [...xs].sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)]
-  return median > 60 ? evs.map(flipEvent) : evs
+/** If the event's team_direction is R2L, mirror coordinates so everything is L2R. */
+function normaliseToL2R(ev) {
+  return ev.team_direction === 'R2L' ? flipEvent(ev) : ev
 }
 
 export function useMatchData() {
@@ -116,7 +107,7 @@ export function useMatchData() {
         // 7. Normalise each player's events to L2R, then compute stats
         const stats = {}
         for (const [pid, evs] of Object.entries(byPlayer)) {
-          const normalised = normalisePlayerEventsToL2R(evs)
+          const normalised = evs.map(normaliseToL2R)
           stats[pid] = calcPlayerStats(normalised)
         }
 

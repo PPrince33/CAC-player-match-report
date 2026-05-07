@@ -1,26 +1,25 @@
 /**
- * FutsalDistributionPitch — Canvas pitch component for event scatter telemetry.
+ * DistributionPitch — Canvas pitch component for event scatter telemetry.
  *
  * Plots each event as a line with arrowhead (when end coords exist) or a circle
  * (when end coords are null). Color is determined by outcome.
  *
  * Props:
- *   events     {MatchEvent[]}          — array of event objects from Supabase
- *   pitchMode  {'standard'|'futsal'}   — controls pitch dimensions and aspect ratio
- *   teamColor  {string}                — team accent color (unused for line color, kept for future use)
- *   playerName {string}                — player name shown in tooltip
+ *   events     {MatchEvent[]}  — array of event objects from Supabase
+ *   teamColor  {string}        — team accent color (kept for future use)
+ *   playerName {string}        — player name shown in tooltip
+ *   players    {Lineup[]}      — lineup array for receiver name lookup
+ *   allTeamEvents {MatchEvent[]} — all team events for receiver inference
  */
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useLayoutEffect, useState, useMemo } from 'react'
 import { drawPitch } from '../utils/pitchRenderer.js'
 import CanvasTooltip from './CanvasTooltip.jsx'
 
+const ASPECT_RATIO = 105 / 68
 const SUCCESS_OUTCOMES = ['Successful', 'Key Pass', 'Assist']
 const COLOR_SUCCESS = '#06D6A0'
 const COLOR_FAIL = '#D90429'
 
-/**
- * Map database coordinates (120×80 space) to canvas pixels.
- */
 function mapCoords(x, y, w, h) {
   return {
     px: (x / 120) * w,
@@ -28,24 +27,15 @@ function mapCoords(x, y, w, h) {
   }
 }
 
-/**
- * Draw a filled equilateral-triangle arrowhead at (tipX, tipY) pointing in
- * the direction from (fromX, fromY) to (tipX, tipY). Base width = 6px.
- */
 function drawArrowhead(ctx, fromX, fromY, tipX, tipY) {
   const angle = Math.atan2(tipY - fromY, tipX - fromX)
-  const baseHalf = 3 // half of 6px base
-  const height = (Math.sqrt(3) / 2) * 6 // equilateral triangle height for base=6
+  const baseHalf = 3
+  const height = (Math.sqrt(3) / 2) * 6
 
-  // Tip of the triangle
   const tx = tipX
   const ty = tipY
-
-  // Base midpoint (behind the tip)
   const bx = tipX - height * Math.cos(angle)
   const by = tipY - height * Math.sin(angle)
-
-  // Two base corners (perpendicular to direction)
   const perpAngle = angle + Math.PI / 2
   const b1x = bx + baseHalf * Math.cos(perpAngle)
   const b1y = by + baseHalf * Math.sin(perpAngle)
@@ -60,14 +50,12 @@ function drawArrowhead(ctx, fromX, fromY, tipX, tipY) {
   ctx.fill()
 }
 
-// Build a player ID → short name map from lineup array
 function buildPlayerMap(players = []) {
   const map = {}
   for (const p of players) {
     const id   = p.player_id
     const name = p.player?.player_name ?? p.player_name ?? null
     if (id && name) {
-      // Store last name only for brevity on canvas
       const parts = name.trim().split(' ')
       map[id] = parts[parts.length - 1].toUpperCase()
     }
@@ -75,8 +63,6 @@ function buildPlayerMap(players = []) {
   return map
 }
 
-// Infer receiver: find the earliest teammate event whose start_x/y is
-// within 10 units of the pass endpoint and within 8 seconds after the pass.
 function inferReceiver(passEvent, allTeamEvents, playerMap) {
   if (!passEvent.end_x || !passEvent.end_y) return null
   const T  = passEvent.match_time_seconds ?? 0
@@ -93,35 +79,25 @@ function inferReceiver(passEvent, allTeamEvents, playerMap) {
   return null
 }
 
-export default function FutsalDistributionPitch({ events = [], pitchMode = 'standard', teamColor, playerName, players = [], allTeamEvents = [] }) {
-  // Stable reference — only recompute when players array changes
+export default function DistributionPitch({ events = [], teamColor, playerName, players = [], allTeamEvents = [] }) {
   const playerMap = useMemo(() => buildPlayerMap(players), [players])
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
   const hitRegionsRef = useRef([])
 
-  const [tooltip, setTooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    fields: [],
-  })
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, fields: [] })
 
-  const drawDimsRef = useRef({ w: 0, h: 0 })
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current
     const canvas = canvasRef.current
     if (!container || !canvas) return
 
-    const aspectRatio = pitchMode === 'futsal' ? 40 / 20 : 105 / 68
-
     function paintCanvas(w) {
       if (w <= 0) return
-      const h = w / aspectRatio
+      const h = w / ASPECT_RATIO
       const dpr = window.devicePixelRatio || 1
 
-      canvas.width = w * dpr
+      canvas.width  = w * dpr
       canvas.height = h * dpr
       canvas.style.width  = `${w}px`
       canvas.style.height = `${h}px`
@@ -130,10 +106,8 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
       if (!ctx) return
       ctx.scale(dpr, dpr)
 
-      drawDimsRef.current = { w, h }
       hitRegionsRef.current = []
-
-      drawPitch(ctx, w, h, pitchMode)
+      drawPitch(ctx, w, h)
 
       if (!events || events.length === 0) return
 
@@ -181,16 +155,15 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
       })
     }
 
-    // Draw immediately with current container width (layout is done post-paint)
-    paintCanvas(container.getBoundingClientRect().width)
+    const initW = container.offsetWidth || container.getBoundingClientRect().width
+    paintCanvas(initW)
 
-    // ResizeObserver handles window resize / column width changes
     const observer = new ResizeObserver(([entry]) => {
       paintCanvas(entry.contentRect.width)
     })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [pitchMode, events, playerMap, allTeamEvents])
+  }, [events, playerMap, allTeamEvents])
 
   function handleMouseMove(e) {
     const canvas = canvasRef.current
@@ -221,21 +194,16 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
         : 'N/A'
 
       const fields = [
-        { label: 'ACTION',   value: ev.action ?? 'N/A' },
-        { label: 'TIME',     value: minutes },
-        { label: 'OUTCOME',  value: ev.outcome ?? 'N/A' },
-        { label: 'FROM',     value: playerName ?? ev.player_name ?? 'N/A' },
+        { label: 'ACTION',  value: ev.action ?? 'N/A' },
+        { label: 'TIME',    value: minutes },
+        { label: 'OUTCOME', value: ev.outcome ?? 'N/A' },
+        { label: 'FROM',    value: playerName ?? ev.player_name ?? 'N/A' },
       ]
       if (nearest.receiverName) {
         fields.push({ label: 'TO', value: nearest.receiverName })
       }
 
-      setTooltip({
-        visible: true,
-        x: mouseX,
-        y: mouseY,
-        fields,
-      })
+      setTooltip({ visible: true, x: mouseX, y: mouseY, fields })
     } else {
       setTooltip((prev) => ({ ...prev, visible: false }))
     }
@@ -245,14 +213,10 @@ export default function FutsalDistributionPitch({ events = [], pitchMode = 'stan
     setTooltip((prev) => ({ ...prev, visible: false }))
   }
 
-  // Measure container width for tooltip overflow detection
   const containerWidth = containerRef.current?.offsetWidth ?? 0
 
   return (
-    <div
-      ref={containerRef}
-      style={{ position: 'relative', width: '100%', minHeight: 120 }}
-    >
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', minHeight: 120 }}>
       <canvas
         ref={canvasRef}
         style={{ display: 'block' }}
