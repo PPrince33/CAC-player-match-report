@@ -19,8 +19,8 @@ const SLOTS = [
   { id: 'CB2',  label: 'CB',  type: 'CB',  x: 20, y: 50 },
   { id: 'RB',   label: 'RB',  type: 'FB',  x: 22, y: 68 },
   { id: 'LM',   label: 'LM',  type: 'WM',  x: 55, y:  8 },
-  { id: 'CDM1', label: 'CDM', type: 'CDM', x: 50, y: 30 },
-  { id: 'CDM2', label: 'CDM', type: 'CDM', x: 50, y: 50 },
+  { id: 'CM1',  label: 'CM',  type: 'CM',  x: 50, y: 30 },
+  { id: 'CM2',  label: 'CM',  type: 'CM',  x: 50, y: 50 },
   { id: 'RM',   label: 'RM',  type: 'WM',  x: 55, y: 72 },
   { id: 'ST1',  label: 'ST',  type: 'ST',  x: 88, y: 32 },
   { id: 'ST2',  label: 'ST',  type: 'ST',  x: 88, y: 48 },
@@ -41,17 +41,87 @@ function mapCoords(x, y, w, h) {
   }
 }
 
-/** Score a player for a given slot type. All values normalised against squad max. */
+const DEF_ACTIONS = ['Standing Tackle', 'Sliding Tackle', 'Pass Intercept', 'Pressure', 'Block', 'Clearance']
+
+/** Compute average pitch locations for a player from their raw events */
+function avgPositions(pid, allStats) {
+  const s = allStats[pid] ?? {}
+
+  // Avg passing position (where they pass FROM)
+  const passes = (s.passEvents ?? []).filter(e => e.start_x != null && e.start_y != null)
+  const avgPassX = passes.length >= 3 ? passes.reduce((a, e) => a + e.start_x, 0) / passes.length : null
+  const avgPassY = passes.length >= 3 ? passes.reduce((a, e) => a + e.start_y, 0) / passes.length : null
+
+  // Avg receiving position (where passes end up near them = pass end coords)
+  const passesEnd = (s.passEvents ?? []).filter(e => e.end_x != null && e.end_y != null)
+  const avgRecvX = passesEnd.length >= 3 ? passesEnd.reduce((a, e) => a + e.end_x, 0) / passesEnd.length : null
+
+  // Avg defensive action position
+  const defEvs = (s.allEvents ?? []).filter(e => DEF_ACTIONS.includes(e.action) && e.start_x != null)
+  const avgDefX = defEvs.length >= 2 ? defEvs.reduce((a, e) => a + e.start_x, 0) / defEvs.length : null
+  const avgDefY = defEvs.length >= 2 ? defEvs.reduce((a, e) => a + e.start_y, 0) / defEvs.length : null
+
+  return { avgPassX, avgPassY, avgRecvX, avgDefX, avgDefY }
+}
+
+/**
+ * Positional hint score (0–1) based on average pitch locations.
+ * Returns how well a player's natural position matches the required slot type.
+ */
+function posHint(pos, slotType) {
+  const { avgPassX, avgPassY, avgRecvX, avgDefX, avgDefY } = pos
+
+  // Normalise coords to 0–1 scale
+  const px  = avgPassX != null ? avgPassX / 120 : null
+  const py  = avgPassY != null ? avgPassY / 80  : null
+  const rx  = avgRecvX != null ? avgRecvX / 120 : null
+  const dx  = avgDefX  != null ? avgDefX  / 120 : null
+  const dy  = avgDefY  != null ? avgDefY  / 80  : null
+
+  if (px == null && dx == null) return 0.5 // no data → neutral
+
+  switch (slotType) {
+    case 'CB':
+      // Defends deep (low dx), central (dy ≈ 0.5)
+      return ((dx != null ? 1 - dx : 0.5) * 0.6) +
+             ((dy != null ? 1 - Math.abs(dy - 0.5) * 2 : 0.5) * 0.4)
+
+    case 'FB':
+      // Works in own half (low px), wide (dy far from 0.5)
+      return ((px != null ? 1 - px : 0.5) * 0.5) +
+             ((py != null ? Math.abs(py - 0.5) * 2 : 0.5) * 0.5)
+
+    case 'CM':
+      // Operates in middle third (px ≈ 0.3–0.6), central (py ≈ 0.5)
+      return ((px != null ? 1 - Math.abs(px - 0.42) * 3 : 0.5) * 0.5) +
+             ((py != null ? 1 - Math.abs(py - 0.5) * 2 : 0.5) * 0.3) +
+             ((dx != null ? 1 - dx : 0.5) * 0.2)
+
+    case 'WM':
+      // Operates in middle third (px ≈ 0.4–0.65), wide (py far from 0.5)
+      return ((px != null ? 1 - Math.abs(px - 0.52) * 3 : 0.5) * 0.4) +
+             ((py != null ? Math.abs(py - 0.5) * 2 : 0.5) * 0.4) +
+             ((rx != null ? rx : 0.5) * 0.2)
+
+    case 'ST':
+      // High up pitch (high px and rx)
+      return ((px != null ? px : 0.5) * 0.4) +
+             ((rx != null ? rx : 0.5) * 0.4) +
+             ((dx != null ? dx : 0.5) * 0.2)
+
+    default: return 0.5
+  }
+}
+
+/** Score a player for a given slot type. Stats + positional hints combined. */
 function buildScorer(squad, allStats) {
   const statKeys = [
     'duelsWon', 'tackles', 'interceptions', 'foulsCommitted',
-    'progPasses', 'totalPasses', 'passAccuracy', 'completePasses',
-    'totalShots', 'totalXG', 'goals', 'matchesPlayed',
-    // computed composites
+    'progPasses', 'totalPasses', 'passAccuracy',
+    'totalShots', 'totalXG', 'goals',
     '_ballRecovery', '_progCarry',
   ]
 
-  // Compute composite stats inline
   const raw = (pid, key) => {
     const s = allStats[pid] ?? {}
     if (key === '_ballRecovery') return (s.tackles ?? 0) + (s.interceptions ?? 0) + (s.clearances ?? 0) + (s.blocks ?? 0)
@@ -66,15 +136,30 @@ function buildScorer(squad, allStats) {
 
   const norm = (pid, key) => raw(pid, key) / maxOf[key]
 
-  const scorers = {
-    CB:  (pid) => norm(pid,'duelsWon')*0.25 + norm(pid,'tackles')*0.20 + norm(pid,'interceptions')*0.20 + norm(pid,'_ballRecovery')*0.20 + (1 - norm(pid,'foulsCommitted'))*0.15,
+  // Pre-compute avg positions for all players
+  const positions = {}
+  for (const p of squad) positions[p.player_id] = avgPositions(p.player_id, allStats)
+
+  // Stats weight = 75%, positional hint weight = 25%
+  const STAT_W = 0.75
+  const POS_W  = 0.25
+
+  const statScore = {
+    CB:  (pid) => norm(pid,'duelsWon')*0.28 + norm(pid,'tackles')*0.22 + norm(pid,'interceptions')*0.22 + norm(pid,'_ballRecovery')*0.18 + (1 - norm(pid,'foulsCommitted'))*0.10,
     FB:  (pid) => norm(pid,'_progCarry')*0.25 + norm(pid,'totalPasses')*0.15 + norm(pid,'passAccuracy')*0.20 + norm(pid,'_ballRecovery')*0.20 + norm(pid,'duelsWon')*0.20,
-    CDM: (pid) => norm(pid,'interceptions')*0.20 + norm(pid,'tackles')*0.20 + norm(pid,'_ballRecovery')*0.20 + norm(pid,'passAccuracy')*0.15 + norm(pid,'progPasses')*0.15 + norm(pid,'duelsWon')*0.10,
+    CM:  (pid) => norm(pid,'interceptions')*0.18 + norm(pid,'tackles')*0.18 + norm(pid,'_ballRecovery')*0.18 + norm(pid,'passAccuracy')*0.18 + norm(pid,'progPasses')*0.18 + norm(pid,'duelsWon')*0.10,
     WM:  (pid) => norm(pid,'_progCarry')*0.25 + norm(pid,'progPasses')*0.20 + norm(pid,'totalShots')*0.15 + norm(pid,'totalXG')*0.15 + norm(pid,'totalPasses')*0.15 + norm(pid,'passAccuracy')*0.10,
     ST:  (pid) => norm(pid,'goals')*0.35 + norm(pid,'totalShots')*0.25 + norm(pid,'totalXG')*0.25 + norm(pid,'duelsWon')*0.10 + norm(pid,'_ballRecovery')*0.05,
   }
 
-  return { scorers, norm, raw }
+  const scorers = {}
+  for (const type of ['CB', 'FB', 'CM', 'WM', 'ST']) {
+    scorers[type] = (pid) =>
+      statScore[type](pid) * STAT_W +
+      posHint(positions[pid], type) * POS_W
+  }
+
+  return { scorers, norm, raw, positions }
 }
 
 function computeLineup(lineups, allStats) {
@@ -85,7 +170,7 @@ function computeLineup(lineups, allStats) {
 
   if (squad.length < 10) return null
 
-  const { scorers, norm, raw } = buildScorer(squad, allStats)
+  const { scorers, norm, raw, positions } = buildScorer(squad, allStats)
 
   // Build all (score, pid, slotId) triples
   const triples = []
@@ -246,12 +331,16 @@ export default function LineupSuggestion({ lineups, allStats }) {
     const jersey = entry.player?.jersey_no ?? '?'
 
     // One-line justification per position type
+    const pos = positions?.[entry.pid]
+    const posNote = pos?.avgPassX != null
+      ? ` · avg pass pos x=${pos.avgPassX.toFixed(0)}`
+      : ''
     const justifications = {
-      CB:  `${(s.duelsWon??0)} duels won · ${(s.tackles??0)} tackles · ${(s.interceptions??0)} interceptions`,
-      FB:  `${(s.succDribbles??0)+(s.carriesIntoFT??0)} prog carries · ${(s.passAccuracy??0)}% pass accuracy · ${(s.duelsWon??0)} duels won`,
-      CDM: `${(s.interceptions??0)} interceptions · ${(s.tackles??0)} tackles · ${(s.passAccuracy??0)}% pass accuracy`,
-      WM:  `${(s.succDribbles??0)+(s.carriesIntoFT??0)} prog carries · ${(s.progPasses??0)} prog passes · ${(s.totalShots??0)} shots`,
-      ST:  `${(s.goals??0)} goals · ${(s.totalShots??0)} shots · ${+(s.totalXG??0).toFixed(2)} xG`,
+      CB:  `${(s.duelsWon??0)} duels won · ${(s.tackles??0)} tackles · ${(s.interceptions??0)} interceptions${posNote}`,
+      FB:  `${(s.succDribbles??0)+(s.carriesIntoFT??0)} prog carries · ${(s.passAccuracy??0)}% pass% · ${(s.duelsWon??0)} duels won${posNote}`,
+      CM:  `${(s.interceptions??0)} interceptions · ${(s.tackles??0)} tackles · ${(s.passAccuracy??0)}% pass%${posNote}`,
+      WM:  `${(s.succDribbles??0)+(s.carriesIntoFT??0)} prog carries · ${(s.progPasses??0)} prog passes · ${(s.totalShots??0)} shots${posNote}`,
+      ST:  `${(s.goals??0)} goals · ${(s.totalShots??0)} shots · ${+(s.totalXG??0).toFixed(2)} xG${posNote}`,
     }
 
     return { slot, entry, name, jersey, isPoor, justification: justifications[slot.type] }
@@ -261,20 +350,20 @@ export default function LineupSuggestion({ lineups, allStats }) {
   const starters     = SLOTS.map(s => lineup[s.id]).filter(Boolean)
   const avgDefense   = starters.filter(e => ['CB','FB'].includes(e.slotType))
     .reduce((a,e) => a + (allStats[e.pid]?.duelsWon??0), 0) / 4
-  const avgMidPass   = starters.filter(e => ['CDM','WM'].includes(e.slotType))
+  const avgMidPass   = starters.filter(e => ['CM','WM'].includes(e.slotType))
     .reduce((a,e) => a + (allStats[e.pid]?.passAccuracy??0), 0) / 4
   const fwdGoals     = starters.filter(e => e.slotType === 'ST')
     .reduce((a,e) => a + (allStats[e.pid]?.goals??0), 0)
 
   const tacticalNote = `The team's defensive shape looks ${avgDefense >= 3 ? 'strong' : 'moderate'} with an average of ${avgDefense.toFixed(1)} duels won per defensive player. Midfield passing quality sits at ${avgMidPass.toFixed(0)}% accuracy across the four midfielders. The two strikers combine for ${fwdGoals} goal${fwdGoals !== 1 ? 's' : ''} — ${fwdGoals >= 2 ? 'showing a promising attacking threat' : 'so adding a creative midfielder or target man could improve output'}.`
 
-  const posColors = { CB: '#0077B6', FB: '#00B4D8', CDM: '#023E8A', WM: '#48CAE4', ST: '#D90429' }
+  const posColors = { CB: '#0077B6', FB: '#00B4D8', CM: '#023E8A', WM: '#48CAE4', ST: '#D90429' }
 
   return (
     <div style={{ fontFamily: FONT }}>
       {/* Header */}
       <div style={{ background: '#000', color: '#FFD166', padding: '8px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-        Suggested Starting XI — 4-4-2 (CDM)
+        Suggested Starting XI — 4-4-2
       </div>
 
       <div style={{ display: 'flex', gap: 0 }}>
