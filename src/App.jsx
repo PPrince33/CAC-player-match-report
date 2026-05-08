@@ -6,6 +6,7 @@ import HeatMap from './components/HeatMap.jsx'
 import { useT } from './utils/translations.js'
 import PassNetwork from './components/PassNetwork.jsx'
 import SquadStatsTable from './components/SquadStatsTable.jsx'
+import LineupSuggestion from './components/LineupSuggestion.jsx'
 import AveragePitchLocations from './components/AveragePitchLocations.jsx'
 import Login from './components/Login.jsx'
 import html2canvas from 'html2canvas'
@@ -309,7 +310,7 @@ export default function App() {
 }
 
 function AppInner({ authed, onLogin, onLogout }) {
-  const { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error } = useMatchData()
+  const { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error, debug } = useMatchData()
 
   // null = aggregate (all matches), or a specific match_id
   const [selectedMatchId, setSelectedMatchId] = useState(null)
@@ -540,7 +541,22 @@ function AppInner({ authed, onLogin, onLogout }) {
 
           {error && (
             <div style={{ padding: '8px 14px', fontSize: 10, color: '#ff5555', fontWeight: 700, fontFamily: 'var(--font)' }}>
-              {error}
+              ERROR: {error}
+            </div>
+          )}
+
+          {/* ── DEBUG PANEL ── remove once data loads correctly */}
+          {debug && (
+            <div style={{ padding: '8px 14px', background: '#1a1a1a', borderBottom: '2px solid #333', fontSize: 9, fontFamily: 'var(--font)', color: '#aaa', lineHeight: 1.8 }}>
+              <div style={{ color: '#FFD166', fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>DEBUG INFO</div>
+              <div>Source: <span style={{ color: debug.evErr ? '#ff5555' : '#5f5' }}>{debug.eventSource}{debug.evErr ? ` (ERR: ${debug.evErr})` : ''}</span></div>
+              <div>Total events: <span style={{ color: debug.totalEvents > 0 ? '#5f5' : '#f55' }}>{debug.totalEvents}</span></div>
+              <div>Matched events: <span style={{ color: debug.matchedEvents > 0 ? '#5f5' : '#f55' }}>{debug.matchedEvents}</span></div>
+              <div>Lineup players: {debug.lineupPlayerCount}</div>
+              <div style={{ marginTop: 4, color: '#666' }}>Sample event PIDs:</div>
+              {debug.sampleEventPids.map((id, i) => <div key={i} style={{ color: '#888', paddingLeft: 8, fontSize: 8 }}>{id}</div>)}
+              <div style={{ marginTop: 4, color: '#666' }}>Sample lineup PIDs:</div>
+              {debug.sampleLineupPids.map((id, i) => <div key={i} style={{ color: '#888', paddingLeft: 8, fontSize: 8 }}>{id}</div>)}
             </div>
           )}
 
@@ -585,13 +601,18 @@ function AppInner({ authed, onLogin, onLogout }) {
                 Squad Stats — {selectedMatchId ? matchLabel(match) : `All Matches (${matches.length})`}
               </div>
               {!loading && (
-                <SquadStatsTable
-                  lineups={lineups}
-                  allStats={allStats}
-                  statsByMatch={statsByMatch}
-                  matches={matches}
-                  selectedMatchId={selectedMatchId}
-                />
+                <>
+                  <SquadStatsTable
+                    lineups={lineups}
+                    allStats={allStats}
+                    statsByMatch={statsByMatch}
+                    matches={matches}
+                    selectedMatchId={selectedMatchId}
+                  />
+                  <div style={{ border: '2px solid #000', margin: 16 }}>
+                    <LineupSuggestion lineups={allLineups} allStats={aggregatedStats} />
+                  </div>
+                </>
               )}
             </div>
           )}
