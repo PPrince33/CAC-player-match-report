@@ -93,10 +93,16 @@ export function useMatchData() {
             away_team: teamsMap[m.away_team_id] || null,
           }))
 
-        // 3. Fetch lineups for all matches in one query
-        const { data: lineupData, error: lErr } = await supabase
-          .from('lineups').select('*').eq('team_id', TEAM_ID).in('match_id', MATCH_IDS).order('starting_xi', { ascending: false })
-        if (lErr) throw lErr
+        // 3. Fetch lineups per match individually
+        const lineupResults = await Promise.all(
+          MATCH_IDS.map(mid =>
+            supabase.from('lineups').select('*').eq('team_id', TEAM_ID).eq('match_id', mid).order('starting_xi', { ascending: false })
+          )
+        )
+        for (const { error } of lineupResults) {
+          if (error) throw error
+        }
+        const lineupData = lineupResults.flatMap(r => r.data ?? [])
 
         // 4. Build player lookup
         const playerIds = [...new Set((lineupData || []).map(l => l.player_id).filter(Boolean))]
@@ -156,14 +162,18 @@ export function useMatchData() {
         // 5. Fetch events for all matches — with retry on failure/empty
         const teamPlayerIdSet = new Set(playerIds)  // original IDs for filtering
 
-        const { data: eventData, error: evErr } = await supabase
-          .from('match_events')
-          .select('*')
-          .in('match_id', MATCH_IDS)
-          .order('match_time_seconds')
+        // Fetch events per match individually (avoids .in() issues with UUID arrays)
+        const eventResults = await Promise.all(
+          MATCH_IDS.map(mid =>
+            supabase.from('match_events').select('*').eq('match_id', mid).order('match_time_seconds')
+          )
+        )
+        for (const { error } of eventResults) {
+          if (error) throw new Error(`match_events query failed: ${error.message}`)
+        }
+        const eventData = eventResults.flatMap(r => r.data ?? [])
 
-        if (evErr) throw new Error(`match_events query failed: ${evErr.message} (code: ${evErr.code})`)
-        if (!eventData || eventData.length === 0) throw new Error('match_events returned 0 rows for these match IDs')
+        if (eventData.length === 0) throw new Error('match_events returned 0 rows — check Supabase RLS policies')
 
         console.log('[useMatchData] events loaded:', eventData.length)
 
