@@ -15,6 +15,7 @@ const COLUMNS = [
   { key: 'tackles',        label: 'Tackles',        numeric: true  },
   { key: 'interceptions',  label: 'Interceptions',  numeric: true  },
   { key: 'foulsCommitted', label: 'Fouls',          numeric: true  },
+  { key: 'goals',          label: 'Goals',          numeric: true  },
   { key: 'totalShots',     label: 'Shots',          numeric: true  },
   { key: 'totalXG',        label: 'xG',             numeric: true  },
   { key: 'progCarry',      label: 'Prog. Carry',    numeric: true  },
@@ -33,6 +34,7 @@ function getStats(pid, allStats) {
     tackles:        s.tackles        ?? 0,
     interceptions:  s.interceptions  ?? 0,
     foulsCommitted: s.foulsCommitted ?? 0,
+    goals:          s.goals          ?? 0,
     totalShots:     s.totalShots     ?? 0,
     totalXG:        s.totalXG        ?? 0,
     progCarry:      (s.succDribbles  ?? 0) + (s.carriesIntoFT ?? 0),
@@ -78,7 +80,7 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
           totalPasses: 0, passAccuracy: 0, completePasses: 0,
           progPasses: 0, ballRecovery: 0, duelsWon: 0,
           tackles: 0, interceptions: 0, foulsCommitted: 0,
-          totalShots: 0, totalXG: 0, progCarry: 0, mp: null,
+          goals: 0, totalShots: 0, totalXG: 0, progCarry: 0, mp: null,
         }),
       }
     })
