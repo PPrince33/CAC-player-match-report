@@ -73,6 +73,9 @@ export function calcPlayerStats(events) {
 
   const pressures = events.filter(e => e.action === 'Pressure')
 
+  // Fouls committed (outcome === 'Foul' on any action)
+  const foulsCommitted = events.filter(e => e.outcome === 'Foul').length
+
   // ── Dribbles & Carries ────────────────────────────────────
   const dribbles = events.filter(e => e.action === 'Dribble')
   const succDribbles = dribbles.filter(e => ['Successful', 'Foul Won'].includes(e.outcome)).length
@@ -116,6 +119,7 @@ export function calcPlayerStats(events) {
 
     // duels won = successful tackles (standing + sliding) + successful dribbles
     duelsWon: succTackles + succDribbles,
+    foulsCommitted,
 
     // ball carrying
     dribbles: dribbles.length, succDribbles,
