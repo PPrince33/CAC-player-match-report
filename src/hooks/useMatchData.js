@@ -18,8 +18,43 @@ function flipEvent(ev) {
   }
 }
 
-function normaliseToL2R(ev) {
-  return ev.team_direction === 'R2L' ? flipEvent(ev) : ev
+function medianX(evs) {
+  const xs = evs.map(e => e.start_x).filter(x => x != null)
+  if (xs.length === 0) return 60   // neutral — don't flip
+  const sorted = [...xs].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)]
+}
+
+/**
+ * Normalise all events for one team in one match so they all attack L→R.
+ *
+ * Teams swap ends at half-time, so we treat each half independently.
+ * Boundary: 45 min (2700 s). If the recording system resets the clock for
+ * the second half every event will be < 2700 s and H2 will be empty —
+ * in that case we fall back to treating the whole match as one period.
+ *
+ * For each period: if the median start_x of all team events > 60 the team
+ * was attacking R→L → flip those events to L→R.
+ */
+function normaliseMatchToL2R(events) {
+  if (events.length === 0) return events
+
+  const HALF = 2700   // 45 minutes in seconds
+  const H1 = events.filter(e => (e.match_time_seconds ?? 0) <= HALF)
+  const H2 = events.filter(e => (e.match_time_seconds ?? 0) >  HALF)
+
+  // If there is no second-half data, treat the whole match as one period
+  if (H2.length === 0) {
+    return medianX(H1) > 60 ? events.map(flipEvent) : events
+  }
+
+  const flipH1 = medianX(H1) > 60
+  const flipH2 = medianX(H2) > 60
+
+  return [
+    ...(flipH1 ? H1.map(flipEvent) : H1),
+    ...(flipH2 ? H2.map(flipEvent) : H2),
+  ]
 }
 
 export function useMatchData() {
@@ -145,16 +180,26 @@ export function useMatchData() {
           eventData = proc || []
         }
 
-        // 6. Group events by match_id then canonical player_id, normalise L2R
-        const eventsByMatchByPlayer = {}
+        // 6. Collect raw team events per match (before normalisation)
+        const rawByMatch = {}   // match_id → events[]
         for (const ev of eventData) {
           if (!teamPlayerIdSet.has(ev.player_id)) continue
-          const mid       = ev.match_id
-          const canonPid  = idToCanonicalId[ev.player_id] ?? ev.player_id
-          const normEv    = { ...normaliseToL2R(ev), player_id: canonPid }
-          if (!eventsByMatchByPlayer[mid]) eventsByMatchByPlayer[mid] = {}
-          if (!eventsByMatchByPlayer[mid][canonPid]) eventsByMatchByPlayer[mid][canonPid] = []
-          eventsByMatchByPlayer[mid][canonPid].push(normEv)
+          if (!rawByMatch[ev.match_id]) rawByMatch[ev.match_id] = []
+          rawByMatch[ev.match_id].push(ev)
+        }
+
+        // Normalise each match's events to L→R using per-half median detection,
+        // then re-group by canonical player_id.
+        const eventsByMatchByPlayer = {}
+        for (const [mid, matchEvs] of Object.entries(rawByMatch)) {
+          const normalised = normaliseMatchToL2R(matchEvs)
+          for (const ev of normalised) {
+            const canonPid = idToCanonicalId[ev.player_id] ?? ev.player_id
+            const normEv   = { ...ev, player_id: canonPid }
+            if (!eventsByMatchByPlayer[mid]) eventsByMatchByPlayer[mid] = {}
+            if (!eventsByMatchByPlayer[mid][canonPid]) eventsByMatchByPlayer[mid][canonPid] = []
+            eventsByMatchByPlayer[mid][canonPid].push(normEv)
+          }
         }
 
         // 7. Stats per match
