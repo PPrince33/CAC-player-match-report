@@ -86,16 +86,38 @@ export function useMatchData() {
           player: playerMap[l.player_id] || null,
         }))
 
-        // Group lineups by match_id
-        const lByMatch = {}
+        // ── Build canonical player identity: same name+jersey = same player ──
+        // A player can have different player_id values across matches if re-registered.
+        // We use "normalised_name__jersey" as the stable key and pick the first
+        // player_id encountered as the canonical one.
+        const playerKey = (l) => {
+          const name = (l.player?.player_name ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+          return `${name}__${l.jersey_no ?? ''}`
+        }
+        const keyToCanonicalId = {}   // key → canonical player_id
+        const idToCanonicalId  = {}   // any player_id → canonical player_id
         for (const l of enrichedLineups) {
+          const k = playerKey(l)
+          if (!keyToCanonicalId[k]) keyToCanonicalId[k] = l.player_id
+          idToCanonicalId[l.player_id] = keyToCanonicalId[k]
+        }
+
+        // Re-map each lineup entry's player_id to canonical
+        const canonicalLineups = enrichedLineups.map(l => ({
+          ...l,
+          player_id: idToCanonicalId[l.player_id] ?? l.player_id,
+        }))
+
+        // Group lineups by match_id (using canonical IDs)
+        const lByMatch = {}
+        for (const l of canonicalLineups) {
           if (!lByMatch[l.match_id]) lByMatch[l.match_id] = []
           lByMatch[l.match_id].push(l)
         }
 
-        // Union lineup across all matches — dedupe by player_id, prefer starting_xi=true
+        // Union lineup — dedupe by canonical player_id, prefer starting_xi=true
         const seenPlayers = new Map()
-        for (const l of enrichedLineups) {
+        for (const l of canonicalLineups) {
           if (!seenPlayers.has(l.player_id) || l.starting_xi) {
             seenPlayers.set(l.player_id, l)
           }
@@ -104,7 +126,7 @@ export function useMatchData() {
           .sort((a, b) => (b.starting_xi ? 1 : 0) - (a.starting_xi ? 1 : 0))
 
         // 5. Fetch events for all matches
-        const teamPlayerIdSet = new Set(playerIds)
+        const teamPlayerIdSet = new Set(playerIds)  // original IDs for filtering
 
         const { data: rawEvents } = await supabase
           .from('match_events')
@@ -123,14 +145,16 @@ export function useMatchData() {
           eventData = proc || []
         }
 
-        // 6. Group events by match_id then player_id, normalise L2R
+        // 6. Group events by match_id then canonical player_id, normalise L2R
         const eventsByMatchByPlayer = {}
         for (const ev of eventData) {
           if (!teamPlayerIdSet.has(ev.player_id)) continue
-          const mid = ev.match_id
+          const mid       = ev.match_id
+          const canonPid  = idToCanonicalId[ev.player_id] ?? ev.player_id
+          const normEv    = { ...normaliseToL2R(ev), player_id: canonPid }
           if (!eventsByMatchByPlayer[mid]) eventsByMatchByPlayer[mid] = {}
-          if (!eventsByMatchByPlayer[mid][ev.player_id]) eventsByMatchByPlayer[mid][ev.player_id] = []
-          eventsByMatchByPlayer[mid][ev.player_id].push(normaliseToL2R(ev))
+          if (!eventsByMatchByPlayer[mid][canonPid]) eventsByMatchByPlayer[mid][canonPid] = []
+          eventsByMatchByPlayer[mid][canonPid].push(normEv)
         }
 
         // 7. Stats per match
