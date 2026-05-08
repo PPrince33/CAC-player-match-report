@@ -157,25 +157,15 @@ export function useMatchData() {
         // 5. Fetch events for all matches — with retry on failure/empty
         const teamPlayerIdSet = new Set(playerIds)  // original IDs for filtering
 
-        const { data: rawEvents, error: evErr } = await withRetry(() =>
+        const { data: eventData, error: evErr } = await withRetry(() =>
           supabase.from('match_events').select('*').in('match_id', MATCH_IDS).order('match_time_seconds')
         )
 
-        let eventData = rawEvents
-        // Only fall back to processed_match_events if match_events genuinely has no data
-        // (not just a transient error — evErr with null data after retries means real problem)
         if (!eventData || eventData.length === 0) {
-          console.log('[useMatchData] match_events empty, trying processed_match_events...')
-          const { data: proc, error: procErr } = await withRetry(() =>
-            supabase.from('processed_match_events').select('*').in('match_id', MATCH_IDS).order('match_time_seconds')
-          )
-          if (procErr && (!proc || proc.length === 0)) {
-            console.error('[useMatchData] both event tables failed:', procErr?.message)
-          }
-          eventData = proc || []
+          throw new Error(evErr?.message ?? 'No events found in match_events for these matches')
         }
 
-        console.log('[useMatchData] events loaded:', eventData?.length ?? 0)
+        console.log('[useMatchData] events loaded:', eventData.length)
 
         // 6. Group events by match_id then canonical player_id, normalise L→R
         const eventsByMatchByPlayer = {}
