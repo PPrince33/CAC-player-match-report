@@ -93,11 +93,10 @@ export function useMatchData() {
             away_team: teamsMap[m.away_team_id] || null,
           }))
 
-        // 3. Fetch lineups for all matches in one query (with retry)
-        const { data: lineupData, error: lErr } = await withRetry(() =>
-          supabase.from('lineups').select('*').eq('team_id', TEAM_ID).in('match_id', MATCH_IDS).order('starting_xi', { ascending: false })
-        )
-        if (lErr && (!lineupData || lineupData.length === 0)) throw lErr
+        // 3. Fetch lineups for all matches in one query
+        const { data: lineupData, error: lErr } = await supabase
+          .from('lineups').select('*').eq('team_id', TEAM_ID).in('match_id', MATCH_IDS).order('starting_xi', { ascending: false })
+        if (lErr) throw lErr
 
         // 4. Build player lookup
         const playerIds = [...new Set((lineupData || []).map(l => l.player_id).filter(Boolean))]
@@ -157,13 +156,14 @@ export function useMatchData() {
         // 5. Fetch events for all matches — with retry on failure/empty
         const teamPlayerIdSet = new Set(playerIds)  // original IDs for filtering
 
-        const { data: eventData, error: evErr } = await withRetry(() =>
-          supabase.from('match_events').select('*').in('match_id', MATCH_IDS).order('match_time_seconds')
-        )
+        const { data: eventData, error: evErr } = await supabase
+          .from('match_events')
+          .select('*')
+          .in('match_id', MATCH_IDS)
+          .order('match_time_seconds')
 
-        if (!eventData || eventData.length === 0) {
-          throw new Error(evErr?.message ?? 'No events found in match_events for these matches')
-        }
+        if (evErr) throw new Error(`match_events query failed: ${evErr.message} (code: ${evErr.code})`)
+        if (!eventData || eventData.length === 0) throw new Error('match_events returned 0 rows for these match IDs')
 
         console.log('[useMatchData] events loaded:', eventData.length)
 
