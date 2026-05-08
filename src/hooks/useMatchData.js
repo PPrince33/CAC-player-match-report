@@ -41,6 +41,19 @@ function isR2L(dir) {
   // "team attacks to the right" = L2R, which should NOT be flipped.
 }
 
+// Retry a Supabase query up to `attempts` times with 1s delay between tries
+async function withRetry(fn, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const result = await fn()
+    if (result.data && result.data.length > 0) return result
+    if (result.error) {
+      console.warn(`[useMatchData] query error (attempt ${i + 1}):`, result.error.message)
+    }
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 1000))
+  }
+  return await fn() // final attempt, return whatever we get
+}
+
 export function useMatchData() {
   const [matches, setMatches]               = useState([])
   const [allLineups, setAllLineups]         = useState([])
@@ -80,14 +93,11 @@ export function useMatchData() {
             away_team: teamsMap[m.away_team_id] || null,
           }))
 
-        // 3. Fetch lineups for all matches in one query
-        const { data: lineupData, error: lErr } = await supabase
-          .from('lineups')
-          .select('*')
-          .eq('team_id', TEAM_ID)
-          .in('match_id', MATCH_IDS)
-          .order('starting_xi', { ascending: false })
-        if (lErr) throw lErr
+        // 3. Fetch lineups for all matches in one query (with retry)
+        const { data: lineupData, error: lErr } = await withRetry(() =>
+          supabase.from('lineups').select('*').eq('team_id', TEAM_ID).in('match_id', MATCH_IDS).order('starting_xi', { ascending: false })
+        )
+        if (lErr && (!lineupData || lineupData.length === 0)) throw lErr
 
         // 4. Build player lookup
         const playerIds = [...new Set((lineupData || []).map(l => l.player_id).filter(Boolean))]
@@ -144,39 +154,30 @@ export function useMatchData() {
         const unionLineups = [...seenPlayers.values()]
           .sort((a, b) => (b.starting_xi ? 1 : 0) - (a.starting_xi ? 1 : 0))
 
-        // 5. Fetch events for all matches
+        // 5. Fetch events for all matches — with retry on failure/empty
         const teamPlayerIdSet = new Set(playerIds)  // original IDs for filtering
 
-        const { data: rawEvents } = await supabase
-          .from('match_events')
-          .select('*')
-          .in('match_id', MATCH_IDS)
-          .order('match_time_seconds')
+        const { data: rawEvents, error: evErr } = await withRetry(() =>
+          supabase.from('match_events').select('*').in('match_id', MATCH_IDS).order('match_time_seconds')
+        )
 
         let eventData = rawEvents
+        // Only fall back to processed_match_events if match_events genuinely has no data
+        // (not just a transient error — evErr with null data after retries means real problem)
         if (!eventData || eventData.length === 0) {
-          const { data: proc, error: procErr } = await supabase
-            .from('processed_match_events')
-            .select('*')
-            .in('match_id', MATCH_IDS)
-            .order('match_time_seconds')
-          if (procErr) throw procErr
+          console.log('[useMatchData] match_events empty, trying processed_match_events...')
+          const { data: proc, error: procErr } = await withRetry(() =>
+            supabase.from('processed_match_events').select('*').in('match_id', MATCH_IDS).order('match_time_seconds')
+          )
+          if (procErr && (!proc || proc.length === 0)) {
+            console.error('[useMatchData] both event tables failed:', procErr?.message)
+          }
           eventData = proc || []
         }
 
+        console.log('[useMatchData] events loaded:', eventData?.length ?? 0)
+
         // 6. Group events by match_id then canonical player_id, normalise L→R
-
-        // ── DEBUG: log direction value distribution so we can verify the flip ──
-        const dirCount = {}
-        for (const ev of eventData) {
-          const k = String(ev.team_direction ?? 'null')
-          dirCount[k] = (dirCount[k] ?? 0) + 1
-        }
-        console.log('[useMatchData] team_direction distribution:', dirCount)
-        console.log('[useMatchData] total events:', eventData.length,
-          '| R2L events (will flip):', eventData.filter(e => isR2L(e.team_direction)).length)
-        // ── END DEBUG ──
-
         const eventsByMatchByPlayer = {}
         for (const ev of eventData) {
           if (!teamPlayerIdSet.has(ev.player_id)) continue
