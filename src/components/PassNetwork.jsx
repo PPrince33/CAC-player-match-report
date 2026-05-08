@@ -11,7 +11,7 @@ import { drawPitch } from '../utils/pitchRenderer.js'
 const ASPECT = 105 / 68
 
 function mapXY(x, y, w, h) {
-  return { px: (x / 120) * w, py: (y / 80) * h }
+  return { px: (x / 120) * w, py: (1 - y / 80) * h }  // y=0 is bottom in data → flip for screen
 }
 
 function lastName(name = '') {

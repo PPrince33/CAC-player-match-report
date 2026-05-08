@@ -38,7 +38,8 @@ function PitchBrush({ events, onBrushChange }) {
     const br = svg.getBoundingClientRect()
     return {
       x: Math.max(0, Math.min(120, (e.clientX - br.left) / br.width  * 120)),
-      y: Math.max(0, Math.min(80,  (e.clientY - br.top)  / br.height * 80)),
+      // y=0 is bottom in data coords → flip the screen y
+      y: Math.max(0, Math.min(80,  80 - (e.clientY - br.top) / br.height * 80)),
     }
   }, [])
 
@@ -57,7 +58,8 @@ function PitchBrush({ events, onBrushChange }) {
 
   const clearBrush = () => { setRect(null); setStart(null); onBrushChange(null) }
 
-  const dots = useMemo(() => events.map((ev, i) => ({ cx: ev.start_x, cy: ev.start_y, key: i })), [events])
+  // cy flipped: y=0 is bottom in data, y=0 is top in SVG
+  const dots = useMemo(() => events.map((ev, i) => ({ cx: ev.start_x, cy: 80 - ev.start_y, key: i })), [events])
 
   return (
     <div>
@@ -88,7 +90,7 @@ function PitchBrush({ events, onBrushChange }) {
         <rect x={-2.5} y={36} width={2.5} height={8} fill="#ddd" stroke="#000" strokeWidth={0.4} />
         <rect x={120}  y={36} width={2.5} height={8} fill="#ddd" stroke="#000" strokeWidth={0.4} />
         {dots.map(d => <circle key={d.key} cx={d.cx} cy={d.cy} r={1.2} fill="#0277B6" opacity={0.45} />)}
-        {rect && <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="rgba(255,209,102,0.25)" stroke="#FFD166" strokeWidth={0.8} strokeDasharray="2 1" />}
+        {rect && <rect x={rect.x} y={80 - rect.y - rect.h} width={rect.w} height={rect.h} fill="rgba(255,209,102,0.25)" stroke="#FFD166" strokeWidth={0.8} strokeDasharray="2 1" />}
       </svg>
     </div>
   )
@@ -97,29 +99,19 @@ function PitchBrush({ events, onBrushChange }) {
 // ── Video player ──────────────────────────────────────────────────────────────
 
 function VideoPlayer({ videoUrl, seekTo }) {
-  const videoRef  = useRef(null)
-  const iframeRef = useRef(null)
-  const [ytId]    = useState(() => getYouTubeId(videoUrl))
-  const [vmId]    = useState(() => getVimeoId(videoUrl))
-  const [isDirect] = useState(() => isDirectVideo(videoUrl))
-  const [ytSrc, setYtSrc] = useState(null)
+  const videoRef = useRef(null)
 
-  // Seek direct video
+  const ytId     = getYouTubeId(videoUrl)
+  const vmId     = getVimeoId(videoUrl)
+  const isDirect = isDirectVideo(videoUrl)
+
+  // Seek direct video without reloading
   useEffect(() => {
     if (isDirect && videoRef.current && seekTo != null) {
       videoRef.current.currentTime = seekTo
       videoRef.current.play().catch(() => {})
     }
   }, [seekTo, isDirect])
-
-  // Reload YouTube iframe with start time
-  useEffect(() => {
-    if (ytId && seekTo != null) {
-      setYtSrc(`https://www.youtube.com/embed/${ytId}?start=${Math.floor(seekTo)}&autoplay=1&rel=0`)
-    } else if (ytId && ytSrc == null) {
-      setYtSrc(`https://www.youtube.com/embed/${ytId}?rel=0`)
-    }
-  }, [ytId, seekTo])
 
   if (!videoUrl) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, border: BT, background: '#111', color: '#555', fontFamily: 'var(--font)', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
@@ -129,11 +121,17 @@ function VideoPlayer({ videoUrl, seekTo }) {
 
   const iframeStyle = { width: '100%', aspectRatio: '16/9', border: 'none', display: 'block' }
 
-  if (ytId) return (
-    <div style={{ border: BT, background: '#000' }}>
-      <iframe ref={iframeRef} key={ytSrc} src={ytSrc} style={iframeStyle} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Match video" />
-    </div>
-  )
+  // key changes only when URL or seekTo changes → iframe reloads at the right time
+  if (ytId) {
+    const src = seekTo != null
+      ? `https://www.youtube.com/embed/${ytId}?start=${Math.floor(seekTo)}&autoplay=1&rel=0`
+      : `https://www.youtube.com/embed/${ytId}?rel=0`
+    return (
+      <div style={{ border: BT, background: '#000' }}>
+        <iframe key={src} src={src} style={iframeStyle} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Match video" />
+      </div>
+    )
+  }
 
   if (vmId) {
     const src = seekTo != null
@@ -148,11 +146,10 @@ function VideoPlayer({ videoUrl, seekTo }) {
 
   if (isDirect) return (
     <div style={{ border: BT, background: '#000' }}>
-      <video ref={videoRef} src={videoUrl} controls style={{ width: '100%', display: 'block', aspectRatio: '16/9' }} />
+      <video ref={videoRef} key={videoUrl} src={videoUrl} controls style={{ width: '100%', display: 'block', aspectRatio: '16/9' }} />
     </div>
   )
 
-  // Unknown URL — open in new tab
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, border: BT, background: '#111', gap: 12, flexDirection: 'column' }}>
       <span style={{ fontFamily: 'var(--font)', fontSize: 9, color: '#888', letterSpacing: 2, textTransform: 'uppercase' }}>EXTERNAL VIDEO LINK</span>
@@ -173,11 +170,15 @@ function fmtTime(sec) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HighlightTab({ events = [], playerName, videoUrl }) {
+export default function HighlightTab({ events = [], playerName, videoUrl: initialVideoUrl, matches = [] }) {
   const [filters, setFilters] = useState({ action: '', outcome: '', type: '' })
   const [brush, setBrush]     = useState(null)
   const [selected, setSelected] = useState(null)
+  const [currentVideoUrl, setCurrentVideoUrl] = useState(initialVideoUrl)
   const [seekTo, setSeekTo]   = useState(null)
+
+  // Keep video URL in sync if prop changes
+  useEffect(() => { setCurrentVideoUrl(initialVideoUrl); setSeekTo(null) }, [initialVideoUrl])
 
   const actions  = useMemo(() => unique(events.map(e => e.action)), [events])
   const outcomes = useMemo(() => unique(events.map(e => e.outcome)), [events])
@@ -201,6 +202,12 @@ export default function HighlightTab({ events = [], playerName, videoUrl }) {
     if (selected === i) { setSelected(null); return }
     setSelected(i)
     const ev = filtered[i]
+    // In aggregate mode: switch to the correct match video first
+    if (matches.length > 0) {
+      const m = matches.find(m => m.match_id === ev?.match_id)
+      if (m?.video_url) setCurrentVideoUrl(m.video_url)
+    }
+    // Then seek to the event timestamp
     if (ev?.match_time_seconds != null) setSeekTo(Math.max(0, ev.match_time_seconds - 3))
   }
 
@@ -219,11 +226,10 @@ export default function HighlightTab({ events = [], playerName, videoUrl }) {
     <div>
       {/* ── Video player ──────────────────────────────────────── */}
       <div style={{ borderBottom: BT }}>
-        <div style={{ background: '#000', color: '#FFD166', padding: '4px 10px', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: 'var(--font)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>MATCH VIDEO</span>
-          {seekTo != null && <span style={{ opacity: 0.7 }}>SEEKING TO {fmtTime(seekTo)}</span>}
+        <div style={{ background: '#000', color: '#FFD166', padding: '4px 10px', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: 'var(--font)' }}>
+          MATCH VIDEO
         </div>
-        <VideoPlayer videoUrl={videoUrl} seekTo={seekTo} />
+        <VideoPlayer videoUrl={currentVideoUrl} seekTo={seekTo} />
       </div>
 
       {/* ── Filters ───────────────────────────────────────────── */}
@@ -302,13 +308,6 @@ export default function HighlightTab({ events = [], playerName, videoUrl }) {
                 <span style={{ fontWeight: 700 }}>{val}</span>
               </div>
             ))}
-            {ev.match_time_seconds != null && (
-              <button
-                onClick={() => setSeekTo(Math.max(0, ev.match_time_seconds - 3))}
-                style={{ fontFamily: 'var(--font)', fontSize: 11, fontWeight: 700, background: '#000', color: '#FFD166', border: 'none', padding: '6px 14px', cursor: 'pointer', letterSpacing: 1.5, textTransform: 'uppercase', marginLeft: 'auto' }}>
-                ▶ SEEK TO {fmtTime(ev.match_time_seconds)}
-              </button>
-            )}
           </div>
         )
       })()}

@@ -24,11 +24,13 @@ export default function HeatMap({ events, teamColor, title = 'Touch Heatmap' }) 
           row.map((count, ci) => {
             if (count === 0) return null
             const opacity = Math.pow(count / maxCount, 0.6) * 0.85
+            // y=0 is bottom in data; SVG y=0 is top → flip row index
+            const svgY = (ROWS - 1 - ri) * 5
             return (
               <rect
                 key={`${ri}-${ci}`}
                 x={ci * 5}
-                y={ri * 5}
+                y={svgY}
                 width={5}
                 height={5}
                 fill={teamColor}
@@ -42,11 +44,12 @@ export default function HeatMap({ events, teamColor, title = 'Touch Heatmap' }) 
         {grid.map((row, ri) =>
           row.map((count, ci) => {
             if (count < maxCount * 0.7) return null
+            const svgY = (ROWS - 1 - ri) * 5
             return (
               <text
                 key={`t-${ri}-${ci}`}
                 x={ci * 5 + 2.5}
-                y={ri * 5 + 3.2}
+                y={svgY + 3.2}
                 textAnchor="middle"
                 fontSize={2}
                 fill="white"

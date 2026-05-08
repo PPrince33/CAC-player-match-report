@@ -6,28 +6,28 @@ export default function PassMap({ passes, title = 'Pass Map' }) {
   const complete = passes.filter(e => SUCCESS.includes(e.outcome))
   const incomplete = passes.filter(e => !SUCCESS.includes(e.outcome))
 
+  const fy = (y) => 80 - y  // data y=0 is bottom; SVG y=0 is top
+
   const renderPasses = (list, color, opacity = 0.75) =>
     list.map((p, i) => {
       if (p.end_x == null || p.end_y == null) return null
       const dx = p.end_x - p.start_x
       const dy = p.end_y - p.start_y
       const len = Math.sqrt(dx * dx + dy * dy) || 1
-      // Arrowhead offset
       const ax = p.end_x - (dx / len) * 1.5
       const ay = p.end_y - (dy / len) * 1.5
       return (
         <g key={i} opacity={opacity}>
           <line
-            x1={p.start_x} y1={p.start_y}
-            x2={ax} y2={ay}
+            x1={p.start_x} y1={fy(p.start_y)}
+            x2={ax} y2={fy(ay)}
             stroke={color} strokeWidth={0.5}
           />
-          {/* Arrowhead */}
           <polygon
-            points={arrowHead(p.start_x, p.start_y, p.end_x, p.end_y, 1.2)}
+            points={arrowHead(p.start_x, fy(p.start_y), p.end_x, fy(p.end_y), 1.2)}
             fill={color}
           />
-          <circle cx={p.start_x} cy={p.start_y} r={0.5} fill={color} />
+          <circle cx={p.start_x} cy={fy(p.start_y)} r={0.5} fill={color} />
         </g>
       )
     })
@@ -47,7 +47,7 @@ export default function PassMap({ passes, title = 'Pass Map' }) {
         {/* Key passes & assists highlighted */}
         {passes.filter(e => ['Key Pass', 'Assist'].includes(e.outcome)).map((p, i) =>
           p.end_x != null ? (
-            <circle key={`kp-${i}`} cx={p.end_x} cy={p.end_y} r={1.5}
+            <circle key={`kp-${i}`} cx={p.end_x} cy={fy(p.end_y)} r={1.5}
               fill="gold" stroke="white" strokeWidth={0.3} opacity={0.9} />
           ) : null
         )}

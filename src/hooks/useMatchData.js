@@ -8,21 +8,37 @@ export const MATCH_IDS = [
 ]
 export const TEAM_ID = '457b3eca-e4da-4b91-b884-8598abe46820'
 
+function parseCoords(ev) {
+  return {
+    ...ev,
+    start_x: ev.start_x != null ? parseFloat(ev.start_x) : null,
+    start_y: ev.start_y != null ? parseFloat(ev.start_y) : null,
+    end_x:   ev.end_x   != null ? parseFloat(ev.end_x)   : null,
+    end_y:   ev.end_y   != null ? parseFloat(ev.end_y)   : null,
+  }
+}
+
 function flipEvent(ev) {
   return {
     ...ev,
     start_x: ev.start_x != null ? 120 - ev.start_x : ev.start_x,
     start_y: ev.start_y != null ? 80  - ev.start_y : ev.start_y,
-    end_x:   ev.end_x   != null ? 120 - ev.end_x   : null,
-    end_y:   ev.end_y   != null ? 80  - ev.end_y   : null,
+    end_x:   ev.end_x   != null ? 120 - ev.end_x   : ev.end_x,
+    end_y:   ev.end_y   != null ? 80  - ev.end_y   : ev.end_y,
   }
 }
 
-/** team_direction field → should we flip? Handles any casing/separator variant. */
+/**
+ * team_direction field → should we flip to L2R?
+ * Flips only when the field clearly means "team is going right-to-left on screen".
+ * 'right' / 'l2r' / 'left_to_right' all mean the team IS going left→right, so no flip.
+ */
 function isR2L(dir) {
   if (!dir) return false
   const d = String(dir).toUpperCase().replace(/[\s_\-]/g, '')
-  return d === 'R2L' || d === 'RTL' || d === 'RIGHTTOLEFT' || d === 'RIGHT'
+  return d === 'R2L' || d === 'RTL' || d === 'RIGHTTOLEFT'
+  // NOTE: 'RIGHT'/'LEFT' are intentionally excluded — 'right' typically means
+  // "team attacks to the right" = L2R, which should NOT be flipped.
 }
 
 export function useMatchData() {
@@ -149,12 +165,25 @@ export function useMatchData() {
         }
 
         // 6. Group events by match_id then canonical player_id, normalise L→R
+
+        // ── DEBUG: log direction value distribution so we can verify the flip ──
+        const dirCount = {}
+        for (const ev of eventData) {
+          const k = String(ev.team_direction ?? 'null')
+          dirCount[k] = (dirCount[k] ?? 0) + 1
+        }
+        console.log('[useMatchData] team_direction distribution:', dirCount)
+        console.log('[useMatchData] total events:', eventData.length,
+          '| R2L events (will flip):', eventData.filter(e => isR2L(e.team_direction)).length)
+        // ── END DEBUG ──
+
         const eventsByMatchByPlayer = {}
         for (const ev of eventData) {
           if (!teamPlayerIdSet.has(ev.player_id)) continue
           const mid      = ev.match_id
           const canonPid = idToCanonicalId[ev.player_id] ?? ev.player_id
-          const normEv   = { ...(isR2L(ev.team_direction) ? flipEvent(ev) : ev), player_id: canonPid }
+          const parsed   = parseCoords(ev)
+          const normEv   = { ...(isR2L(parsed.team_direction) ? flipEvent(parsed) : parsed), player_id: canonPid }
           if (!eventsByMatchByPlayer[mid]) eventsByMatchByPlayer[mid] = {}
           if (!eventsByMatchByPlayer[mid][canonPid]) eventsByMatchByPlayer[mid][canonPid] = []
           eventsByMatchByPlayer[mid][canonPid].push(normEv)

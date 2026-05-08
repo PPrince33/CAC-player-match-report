@@ -526,6 +526,7 @@ export default function App() {
                 matchInfo={match}
                 lineup={lineups}
                 allStats={allStats}
+                matches={matches}
                 lang={lang}
               />
             </>
@@ -554,7 +555,7 @@ export default function App() {
                       )}
                     </div>
                     {lineup && stats
-                      ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} compareColor={color} compact lang={lang} />
+                      ? <PlayerReport ref={ref} player={lineup} stats={stats} matchInfo={match} lineup={lineups} allStats={allStats} matches={matches} compareColor={color} compact lang={lang} />
                       : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, flexDirection: 'column', gap: 12, opacity: 0.4 }}>
                           <div style={{ fontSize: 36 }}>⚽</div>

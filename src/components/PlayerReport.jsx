@@ -88,8 +88,20 @@ function PercentBar({ label, made, total, color = '#0277B6' }) {
   )
 }
 
+function AggregateHighlightTab({ events, playerName, matches }) {
+  // Pass matches so HighlightTab can switch video automatically when an event is clicked
+  return (
+    <HighlightTab
+      events={events}
+      playerName={playerName}
+      videoUrl={matches[0]?.video_url ?? null}
+      matches={matches}
+    />
+  )
+}
+
 const PlayerReport = forwardRef(function PlayerReport(
-  { player, stats, matchInfo, lineup, allStats, compareColor, compact, lang = 'en' },
+  { player, stats, matchInfo, lineup, allStats, matches = [], compareColor, compact, lang = 'en' },
   ref
 ) {
   const t = useT(lang)
@@ -340,7 +352,9 @@ const PlayerReport = forwardRef(function PlayerReport(
 
         {/* HIGHLIGHTS */}
         {tab === 'HIGHLIGHTS' && (
-          <HighlightTab events={stats.allEvents ?? []} playerName={playerName} videoUrl={matchInfo?.video_url ?? null} />
+          isAggregate
+            ? <AggregateHighlightTab events={stats.allEvents ?? []} playerName={playerName} matches={matches} />
+            : <HighlightTab events={stats.allEvents ?? []} playerName={playerName} videoUrl={matchInfo?.video_url ?? null} />
         )}
 
       </div>

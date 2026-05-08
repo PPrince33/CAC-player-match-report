@@ -28,12 +28,11 @@ const ASPECT     = HALF_WIDTH / PITCH_H    // canvas aspect ratio
  */
 function mapCoords(x, y, w, h) {
   const scaleX = w / HALF_WIDTH
-  const scaleY = h / PITCH_H
   const pitchX = (x / 120) * PITCH_W
-  const pitchY = (y / 80)  * PITCH_H
+  const pitchY = (1 - y / 80) * PITCH_H   // y=0 is bottom in data → flip for screen
   return {
     px: (pitchX - HALF_WIDTH) * scaleX,
-    py: pitchY * scaleY,
+    py: pitchY * (h / PITCH_H),
   }
 }
 

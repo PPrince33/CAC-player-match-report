@@ -23,7 +23,7 @@ const COLOR_FAIL = '#D90429'
 function mapCoords(x, y, w, h) {
   return {
     px: (x / 120) * w,
-    py: (y / 80) * h,
+    py: (1 - y / 80) * h,   // y=0 is bottom in data → flip for screen
   }
 }
 
