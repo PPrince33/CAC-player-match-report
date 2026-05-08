@@ -114,6 +114,9 @@ export function calcPlayerStats(events) {
     pressures: pressures.length,
     ballControl,
 
+    // duels won = successful tackles (standing + sliding) + successful dribbles
+    duelsWon: succTackles + succDribbles,
+
     // ball carrying
     dribbles: dribbles.length, succDribbles,
     dribbleRate: dribbles.length > 0 ? Math.round((succDribbles / dribbles.length) * 100) : 0,

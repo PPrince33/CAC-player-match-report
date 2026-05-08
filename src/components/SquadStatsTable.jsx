@@ -11,6 +11,7 @@ const COLUMNS = [
   { key: 'completePasses', label: 'Completed',      numeric: true  },
   { key: 'progPasses',     label: 'Prog. Passes',   numeric: true  },
   { key: 'ballRecovery',   label: 'Ball Recovery',  numeric: true  },
+  { key: 'duelsWon',       label: 'Duels Won',      numeric: true  },
   { key: 'totalShots',     label: 'Shots',          numeric: true  },
   { key: 'totalXG',        label: 'xG',             numeric: true  },
   { key: 'progCarry',      label: 'Prog. Carry',    numeric: true  },
@@ -25,6 +26,7 @@ function getStats(pid, allStats) {
     completePasses: s.completePasses ?? 0,
     progPasses:     s.progPasses     ?? 0,
     ballRecovery:   (s.tackles ?? 0) + (s.interceptions ?? 0) + (s.clearances ?? 0) + (s.blocks ?? 0),
+    duelsWon:       s.duelsWon       ?? 0,
     totalShots:     s.totalShots     ?? 0,
     totalXG:        s.totalXG        ?? 0,
     progCarry:      (s.succDribbles  ?? 0) + (s.carriesIntoFT ?? 0),
@@ -68,7 +70,7 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
         hasData,
         ...(hasData ? stats : {
           totalPasses: 0, passAccuracy: 0, completePasses: 0,
-          progPasses: 0, ballRecovery: 0, totalShots: 0,
+          progPasses: 0, ballRecovery: 0, duelsWon: 0, totalShots: 0,
           totalXG: 0, progCarry: 0, mp: null,
         }),
       }
