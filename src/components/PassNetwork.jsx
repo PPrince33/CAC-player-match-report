@@ -89,35 +89,46 @@ export default function PassNetwork({ allStats, lineups }) {
       const nodes = {}   // pid → { x, y, total, successful, successRate, name, jersey }
       const edges = {}   // "pidA|pidB" → pass count
 
+      const SUCCESS = ['Successful', 'Key Pass', 'Assist']
+
+      // First pass: resolve receiver IDs for all passes so we can filter by visibility
+      const passesWithReceiver = {}   // pid → [{ pass, receiverId }]
       for (const [pid, stats] of Object.entries(allStats ?? {})) {
         if (!visiblePlayerIds.has(pid)) continue
-        const passes = stats.passEvents ?? []
-        if (passes.length === 0) continue
+        passesWithReceiver[pid] = (stats.passEvents ?? []).map(pass => ({
+          pass,
+          rid: pass.receiver_player_id ?? pass.secondary_player_id ?? inferReceiverId(pass, allTeamEvents),
+        }))
+      }
 
-        const valid = passes.filter(e => e.start_x != null && e.start_y != null)
+      for (const [pid, pwrs] of Object.entries(passesWithReceiver)) {
+        // Only count passes where the receiver is ALSO visible — this makes average
+        // position shift when players are added/removed from the network
+        const networkPasses = pwrs.filter(({ rid }) => rid && rid !== pid && visiblePlayerIds.has(rid))
+        const allPasses     = pwrs.map(({ pass }) => pass)
+
+        // Use network passes for position if we have enough; fall back to all passes
+        const positionPasses = networkPasses.length >= 2
+          ? networkPasses.map(({ pass }) => pass)
+          : allPasses
+
+        const valid = positionPasses.filter(p => p.start_x != null && p.start_y != null)
         if (valid.length === 0) continue
 
-        const avgX = valid.reduce((s, e) => s + e.start_x, 0) / valid.length
-        const avgY = valid.reduce((s, e) => s + e.start_y, 0) / valid.length
+        const avgX = valid.reduce((s, p) => s + p.start_x, 0) / valid.length
+        const avgY = valid.reduce((s, p) => s + p.start_y, 0) / valid.length
 
-        const SUCCESS = ['Successful', 'Key Pass', 'Assist']
-        const successful = passes.filter(e => SUCCESS.includes(e.outcome)).length
-        const successRate = passes.length > 0 ? successful / passes.length : 0
+        const successful  = allPasses.filter(p => SUCCESS.includes(p.outcome)).length
+        const successRate = allPasses.length > 0 ? successful / allPasses.length : 0
 
         const lineup = lineups.find(l => l.player_id === pid)
         const name   = lineup?.player?.player_name ?? lineup?.player_name ?? `#${lineup?.jersey_no ?? '?'}`
         const jersey = lineup?.jersey_no ?? ''
 
-        nodes[pid] = { x: avgX, y: avgY, total: passes.length, successful, successRate, name, jersey }
+        nodes[pid] = { x: avgX, y: avgY, total: allPasses.length, successful, successRate, name, jersey }
 
-        // Build edges: use DB receiver fields first, fall back to spatial inference
-        for (const pass of passes) {
-          const rid =
-            pass.receiver_player_id ??
-            pass.secondary_player_id ??
-            inferReceiverId(pass, allTeamEvents)
-          if (!rid || rid === pid) continue
-          if (!visiblePlayerIds.has(rid)) continue   // only connect visible players
+        // Build edges from network passes
+        for (const { rid } of networkPasses) {
           const key = [pid, rid].sort().join('|')
           edges[key] = (edges[key] ?? 0) + 1
         }
