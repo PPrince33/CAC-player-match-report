@@ -5,6 +5,9 @@ import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
 import { useT } from './utils/translations.js'
 import PassNetwork from './components/PassNetwork.jsx'
+import SquadStatsTable from './components/SquadStatsTable.jsx'
+import AveragePitchLocations from './components/AveragePitchLocations.jsx'
+import Login from './components/Login.jsx'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -278,10 +281,23 @@ function matchLabel(match) {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => localStorage.getItem('cac_auth') === '1')
+
+  if (!authed) {
+    return <Login onLogin={() => setAuthed(true)} />
+  }
+
+  return <AppInner onLogout={() => { localStorage.removeItem('cac_auth'); setAuthed(false) }} />
+}
+
+function AppInner({ onLogout }) {
   const { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error } = useMatchData()
 
   // null = aggregate (all matches), or a specific match_id
   const [selectedMatchId, setSelectedMatchId] = useState(null)
+
+  // top-level view tab: 'squad' | 'team' | 'player' | 'compare'
+  const [viewTab, setViewTab] = useState('player')
 
   const [mode, setMode] = useState('single') // 'single' | 'compare'
   const [playerA, setPlayerA] = useState(null)
@@ -364,9 +380,28 @@ export default function App() {
       {/* ── Top nav ─────────────────────────────────────────── */}
       <nav style={S.navBar}>
         <span style={S.navTitle}>{t('appTitle')}</span>
-        <button style={S.modeBtn(mode === 'single')} onClick={() => setMode('single')}>{t('single')}</button>
-        <button style={S.modeBtn(mode === 'compare')} onClick={() => setMode('compare')}>{t('compare')}</button>
-        {mode === 'compare' && (
+
+        {/* View tabs */}
+        {[
+          { key: 'squad',   label: 'Squad'   },
+          { key: 'team',    label: 'Team'    },
+          { key: 'player',  label: 'Player'  },
+          { key: 'compare', label: 'Compare' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            style={S.modeBtn(viewTab === key)}
+            onClick={() => {
+              setViewTab(key)
+              if (key === 'player') setMode('single')
+              if (key === 'compare') setMode('compare')
+            }}
+          >
+            {label}
+          </button>
+        ))}
+
+        {viewTab === 'compare' && (
           <span style={{ fontSize: 10, color: '#888', marginLeft: 12, fontFamily: 'var(--font)', letterSpacing: 1 }}>
             {playerA && lineups.find(l => l.player_id === playerA)?.player?.player_name
               ? <span style={{ color: '#6ec6ff' }}>{lineups.find(l => l.player_id === playerA).player.player_name}</span>
@@ -379,6 +414,7 @@ export default function App() {
             }
           </span>
         )}
+
         <div style={{ flex: 1 }} />
         {!loading && (
           <span style={{ fontSize: 10, color: '#888', fontFamily: 'var(--font)', letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -400,6 +436,18 @@ export default function App() {
             </button>
           ))}
         </div>
+        {/* Logout */}
+        <button
+          onClick={onLogout}
+          style={{
+            fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1,
+            textTransform: 'uppercase', padding: '4px 12px', marginLeft: 8,
+            background: 'transparent', color: '#888',
+            border: '2px solid #444', cursor: 'pointer',
+          }}
+        >
+          Logout
+        </button>
       </nav>
 
       <div style={{ display: 'flex', flex: 1 }}>
@@ -474,7 +522,7 @@ export default function App() {
             </div>
           )}
 
-          {!loading && (
+          {!loading && (viewTab === 'player' || viewTab === 'compare') && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {selectedMatchId
                 /* Per-match: show starters / subs */
@@ -501,8 +549,52 @@ export default function App() {
         {/* ── Main ─────────────────────────────────────────────── */}
         <main style={{ flex: 1, overflowY: 'auto', background: '#fff' }}>
 
-          {/* Single mode */}
-          {mode === 'single' && lineupA && statsA && (
+          {/* SQUAD view */}
+          {viewTab === 'squad' && (
+            <div>
+              <div style={{ background: '#000', color: '#FFD166', padding: '8px 20px', fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: FONT }}>
+                Squad Stats — {selectedMatchId ? matchLabel(match) : `All Matches (${matches.length})`}
+              </div>
+              {!loading && (
+                <SquadStatsTable
+                  lineups={lineups}
+                  allStats={allStats}
+                  statsByMatch={statsByMatch}
+                  matches={matches}
+                  selectedMatchId={selectedMatchId}
+                />
+              )}
+            </div>
+          )}
+
+          {/* TEAM view */}
+          {viewTab === 'team' && !loading && Object.keys(allStats).length > 0 && (
+            <div>
+              <div style={{ background: '#000', color: '#FFD166', padding: '8px 20px', fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: FONT }}>
+                Team Analysis — {selectedMatchId ? matchLabel(match) : `All Matches (${matches.length})`}
+              </div>
+              <div style={{ border: '2px solid #000', margin: 16 }}>
+                <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
+                  Pass Network
+                </div>
+                <div style={{ padding: 12 }}>
+                  <PassNetwork allStats={allStats} lineups={lineups} />
+                </div>
+                <div style={{ padding: '6px 14px', borderTop: BT, fontFamily: FONT, fontSize: 9, letterSpacing: 1, opacity: 0.5, textTransform: 'uppercase' }}>
+                  Circle size = pass accuracy · Line thickness = passes between players
+                </div>
+              </div>
+              <div style={{ border: '2px solid #000', margin: 16 }}>
+                <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
+                  Average Position Maps
+                </div>
+                <AveragePitchLocations allStats={allStats} lineups={lineups} />
+              </div>
+            </div>
+          )}
+
+          {/* PLAYER view (single) */}
+          {viewTab === 'player' && mode === 'single' && lineupA && statsA && (
             <>
               <div style={S.topBar}>
                 <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--font)', textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -532,8 +624,8 @@ export default function App() {
             </>
           )}
 
-          {/* Compare mode */}
-          {mode === 'compare' && (lineupA || lineupB) && (
+          {/* COMPARE view */}
+          {viewTab === 'compare' && (lineupA || lineupB) && (
             <div>
               {/* Side-by-side player cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
@@ -597,13 +689,12 @@ export default function App() {
             </div>
           )}
 
-          {/* Empty state — pass network */}
-          {((mode === 'single' && !lineupA) || (mode === 'compare' && !lineupA && !lineupB)) && (
+          {/* Empty state for player/compare */}
+          {((viewTab === 'player' && !lineupA) || (viewTab === 'compare' && !lineupA && !lineupB)) && (
             <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
-              {/* Header */}
               <div style={{ marginBottom: 16, textAlign: 'center' }}>
                 <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 16, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>
-                  {loading ? t('loadingMatch') : mode === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
+                  {loading ? t('loadingMatch') : viewTab === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
                 </div>
                 {!loading && (
                   <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.4 }}>
@@ -613,21 +704,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-              {/* Pass network */}
-              {!loading && Object.keys(allStats).length > 0 && (
-                <div style={{ border: BT }}>
-                  <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
-                    TEAM PASS NETWORK — {selectedMatchId ? matchLabel(match) : `ALL MATCHES (${matches.length})`}
-                  </div>
-                  <div style={{ padding: 12 }}>
-                    <PassNetwork allStats={allStats} lineups={lineups} />
-                  </div>
-                  <div style={{ padding: '6px 14px', borderTop: BT, fontFamily: FONT, fontSize: 9, letterSpacing: 1, opacity: 0.5, textTransform: 'uppercase' }}>
-                    Circle size = pass accuracy · Line thickness = passes between players
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </main>

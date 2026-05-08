@@ -54,15 +54,13 @@ function inferReceiverId(pass, allTeamEvents) {
 export default function PassNetwork({ allStats, lineups }) {
   const containerRef = useRef(null)
   const canvasRef    = useRef(null)
-  const [filter, setFilter] = useState('starting11') // 'starting11' | 'all'
 
-  // Derive the set of player IDs to show based on filter
-  const visiblePlayerIds = new Set(
-    lineups
-      .filter(l => filter === 'all' || l.starting_xi)
-      .map(l => l.player_id)
-      .filter(Boolean)
-  )
+  // Build the starting XI set
+  const startingIds = lineups.filter(l => l.starting_xi).map(l => l.player_id).filter(Boolean)
+
+  const [selectedIds, setSelectedIds] = useState(() => new Set(startingIds))
+
+  const visiblePlayerIds = selectedIds
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -277,35 +275,108 @@ export default function PassNetwork({ allStats, lineups }) {
     })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [allStats, lineups, visiblePlayerIds])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allStats, lineups, Array.from(selectedIds).sort().join(',')])
+
+  function togglePlayer(pid) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(pid)) next.delete(pid)
+      else next.add(pid)
+      return next
+    })
+  }
+
+  function resetToStartingXI() {
+    setSelectedIds(new Set(startingIds))
+  }
 
   const btnBase = {
-    padding: '4px 12px', fontSize: 10, fontWeight: 700, letterSpacing: 1.5,
-    textTransform: 'uppercase', fontFamily: 'monospace', cursor: 'pointer',
+    padding: '4px 10px', fontSize: 9, fontWeight: 700, letterSpacing: 1,
+    textTransform: 'uppercase', fontFamily: 'var(--font)', cursor: 'pointer',
     border: '2px solid #000', background: '#fff', color: '#000',
+    display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
   }
-  const btnActive = { ...btnBase, background: '#000', color: '#FFD166' }
+  const btnActive = { ...btnBase, background: '#000', color: '#FFD166', borderColor: '#000' }
+
+  // Build ordered player list: starting XI first, then subs
+  const orderedLineups = [
+    ...lineups.filter(l => l.starting_xi),
+    ...lineups.filter(l => !l.starting_xi),
+  ]
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* Toggle */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        {[
-          { key: 'starting11', label: 'Starting 11' },
-          { key: 'all',        label: 'All Players'  },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            style={filter === key ? btnActive : btnBase}
-          >
-            {label}
-          </button>
-        ))}
+    <div style={{ display: 'flex', width: '100%', gap: 0 }}>
+      {/* Canvas — 70% */}
+      <div ref={containerRef} style={{ flex: '0 0 70%', width: '70%' }}>
+        <canvas ref={canvasRef} style={{ display: 'block' }} />
       </div>
 
-      <div ref={containerRef} style={{ width: '100%' }}>
-        <canvas ref={canvasRef} style={{ display: 'block' }} />
+      {/* Player toggles — 30% */}
+      <div style={{
+        flex: '0 0 30%', width: '30%',
+        borderLeft: '2px solid #000',
+        display: 'flex', flexDirection: 'column',
+        fontFamily: 'var(--font)',
+        overflowY: 'auto',
+      }}>
+        {/* Reset button */}
+        <div style={{ padding: '8px 10px', borderBottom: '2px solid #000' }}>
+          <button
+            onClick={resetToStartingXI}
+            style={{
+              ...btnBase,
+              background: '#FFD166', color: '#000', borderColor: '#000',
+              width: '100%', justifyContent: 'center',
+              fontSize: 9, padding: '5px 0',
+            }}
+          >
+            Reset to Starting XI
+          </button>
+        </div>
+
+        {/* Starting XI label */}
+        <div style={{ padding: '4px 10px', background: '#000', color: '#FFD166', fontSize: 8, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase' }}>
+          Starting XI
+        </div>
+
+        {orderedLineups.map((l, idx) => {
+          const pid = l.player_id
+          if (!pid) return null
+          const isSelected = selectedIds.has(pid)
+          const isStarter = l.starting_xi
+          const name = l.player?.player_name ?? 'Unknown'
+          const lname = lastName(name)
+          const jersey = l.jersey_no ?? '?'
+
+          // Separator before subs
+          const prevIsStarter = idx > 0 && orderedLineups[idx - 1].starting_xi
+          const showSubsLabel = !isStarter && prevIsStarter
+
+          return (
+            <div key={pid}>
+              {showSubsLabel && (
+                <div style={{ padding: '4px 10px', background: '#000', color: '#FFD166', fontSize: 8, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase' }}>
+                  Substitutes
+                </div>
+              )}
+              <button
+                onClick={() => togglePlayer(pid)}
+                style={{
+                  ...isSelected ? btnActive : btnBase,
+                  width: '100%', justifyContent: 'flex-start',
+                  padding: '5px 10px',
+                  borderLeft: 'none', borderRight: 'none', borderTop: 'none',
+                  borderBottom: '1px solid #ddd',
+                }}
+              >
+                <span style={{ minWidth: 18, fontSize: 9, opacity: 0.7, textAlign: 'right', fontWeight: 700 }}>{jersey}</span>
+                <span style={{ marginLeft: 6, fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lname}</span>
+                {!isStarter && <span style={{ marginLeft: 'auto', fontSize: 7, opacity: 0.5, letterSpacing: 1 }}>SUB</span>}
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

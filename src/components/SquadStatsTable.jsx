@@ -1,0 +1,231 @@
+import { useState, useMemo } from 'react'
+
+const FONT = 'var(--font)'
+
+const COLUMNS = [
+  { key: 'jersey_no',      label: '#',             numeric: true  },
+  { key: 'player_name',    label: 'Player',         numeric: false },
+  { key: 'mp',             label: 'MP',             numeric: true, aggregateOnly: true },
+  { key: 'totalPasses',    label: 'Passes',         numeric: true  },
+  { key: 'passAccuracy',   label: 'Pass%',          numeric: true  },
+  { key: 'completePasses', label: 'Completed',      numeric: true  },
+  { key: 'progPasses',     label: 'Prog. Passes',   numeric: true  },
+  { key: 'ballRecovery',   label: 'Ball Recovery',  numeric: true  },
+  { key: 'totalShots',     label: 'Shots',          numeric: true  },
+  { key: 'totalXG',        label: 'xG',             numeric: true  },
+  { key: 'progCarry',      label: 'Prog. Carry',    numeric: true  },
+]
+
+function getStats(pid, allStats) {
+  const s = allStats[pid]
+  if (!s) return null
+  return {
+    totalPasses:    s.totalPasses    ?? 0,
+    passAccuracy:   s.passAccuracy   ?? 0,
+    completePasses: s.completePasses ?? 0,
+    progPasses:     s.progPasses     ?? 0,
+    ballRecovery:   (s.tackles ?? 0) + (s.interceptions ?? 0) + (s.clearances ?? 0) + (s.blocks ?? 0),
+    totalShots:     s.totalShots     ?? 0,
+    totalXG:        s.totalXG        ?? 0,
+    progCarry:      (s.succDribbles  ?? 0) + (s.carriesIntoFT ?? 0),
+    mp:             s.matchesPlayed  ?? null,
+  }
+}
+
+export default function SquadStatsTable({ lineups, allStats, statsByMatch, matches, selectedMatchId }) {
+  const [localMatch, setLocalMatch] = useState(selectedMatchId ?? null)
+  const [sortKey, setSortKey] = useState('jersey_no')
+  const [sortAsc, setSortAsc] = useState(true)
+
+  const activeMatchId = localMatch
+
+  // Stats to use
+  const activeStats = useMemo(() => {
+    if (activeMatchId) return statsByMatch[activeMatchId] ?? {}
+    return allStats
+  }, [activeMatchId, allStats, statsByMatch])
+
+  // Lineups for active context
+  const activeLineups = useMemo(() => {
+    if (!activeMatchId) return lineups
+    // filter to players in that match
+    const matchStats = statsByMatch[activeMatchId] ?? {}
+    return lineups.filter(l => matchStats[l.player_id] != null || true) // show all, dim missing
+  }, [activeMatchId, lineups, statsByMatch])
+
+  const isAggregate = !activeMatchId
+
+  // Build rows
+  const rows = useMemo(() => {
+    return activeLineups.map(l => {
+      const pid = l.player_id
+      const stats = getStats(pid, activeStats)
+      const hasData = stats != null
+      return {
+        player_id: pid,
+        jersey_no: l.jersey_no ?? 999,
+        player_name: l.player?.player_name ?? 'Unknown',
+        hasData,
+        ...(hasData ? stats : {
+          totalPasses: 0, passAccuracy: 0, completePasses: 0,
+          progPasses: 0, ballRecovery: 0, totalShots: 0,
+          totalXG: 0, progCarry: 0, mp: null,
+        }),
+      }
+    })
+  }, [activeLineups, activeStats])
+
+  // Sort
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      let va = a[sortKey]
+      let vb = b[sortKey]
+      if (sortKey === 'player_name') {
+        va = va ?? ''
+        vb = vb ?? ''
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
+      }
+      va = va ?? 0
+      vb = vb ?? 0
+      return sortAsc ? va - vb : vb - va
+    })
+  }, [rows, sortKey, sortAsc])
+
+  function handleSort(key) {
+    if (sortKey === key) {
+      setSortAsc(a => !a)
+    } else {
+      setSortKey(key)
+      setSortAsc(key === 'jersey_no' || key === 'player_name')
+    }
+  }
+
+  const visibleCols = isAggregate
+    ? COLUMNS
+    : COLUMNS.filter(c => !c.aggregateOnly)
+
+  const thStyle = (key) => ({
+    padding: '6px 8px',
+    fontSize: 9,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+    fontWeight: 700,
+    color: '#FFD166',
+    background: '#000',
+    border: '1px solid #222',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    userSelect: 'none',
+    textAlign: key === 'player_name' ? 'left' : 'center',
+  })
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      {/* Match selector */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '10px 16px', borderBottom: '2px solid #000', background: '#f7f7f7' }}>
+        <button
+          onClick={() => setLocalMatch(null)}
+          style={{
+            fontFamily: FONT, fontWeight: 700, fontSize: 9, letterSpacing: 1,
+            textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer',
+            border: '2px solid',
+            borderColor: !activeMatchId ? '#000' : '#aaa',
+            background: !activeMatchId ? '#000' : 'transparent',
+            color: !activeMatchId ? '#FFD166' : '#555',
+          }}
+        >
+          All Matches
+        </button>
+        {matches.map(m => {
+          const active = activeMatchId === m.match_id
+          const opp = m.away_team?.team_name ?? m.home_team?.team_name ?? 'Unknown'
+          const date = m.match_date ? String(m.match_date).slice(0, 10) : ''
+          return (
+            <button
+              key={m.match_id}
+              onClick={() => setLocalMatch(m.match_id)}
+              style={{
+                fontFamily: FONT, fontWeight: 700, fontSize: 9, letterSpacing: 1,
+                textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer',
+                border: '2px solid',
+                borderColor: active ? '#000' : '#aaa',
+                background: active ? '#000' : 'transparent',
+                color: active ? '#FFD166' : '#555',
+              }}
+            >
+              vs {opp}{date ? ' · ' + date : ''}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          border: '2px solid #000',
+          fontSize: 12,
+          fontFamily: FONT,
+        }}>
+          <thead>
+            <tr>
+              {visibleCols.map(col => (
+                <th
+                  key={col.key}
+                  style={thStyle(col.key)}
+                  onClick={() => handleSort(col.key)}
+                  title={`Sort by ${col.label}`}
+                >
+                  {col.label}
+                  {sortKey === col.key ? (sortAsc ? ' ▲' : ' ▼') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((row, i) => (
+              <tr
+                key={row.player_id}
+                style={{
+                  opacity: !row.hasData ? 0.35 : 1,
+                  background: i % 2 === 0 ? '#fff' : '#f5f5f5',
+                }}
+              >
+                {visibleCols.map(col => {
+                  let val = row[col.key]
+                  if (col.key === 'passAccuracy') val = val != null ? val + '%' : '—'
+                  else if (col.key === 'totalXG') val = val != null ? val.toFixed(2) : '—'
+                  else if (col.key === 'mp') val = val != null ? val : '—'
+                  else if (!row.hasData && col.key !== 'player_name' && col.key !== 'jersey_no') val = '—'
+                  else if (val == null) val = '—'
+
+                  return (
+                    <td
+                      key={col.key}
+                      style={{
+                        padding: '6px 8px',
+                        border: '1px solid #ddd',
+                        textAlign: col.numeric ? 'center' : 'left',
+                        fontWeight: col.numeric ? 700 : 400,
+                        fontSize: col.numeric ? 12 : 11,
+                        whiteSpace: 'nowrap',
+                        color: '#000',
+                      }}
+                    >
+                      {col.key === 'jersey_no'
+                        ? <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.6 }}>{val}</span>
+                        : val
+                      }
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
