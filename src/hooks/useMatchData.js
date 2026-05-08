@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { supabase, hasCredentials } from '../lib/supabase.js'
 import { calcPlayerStats } from '../utils/stats.js'
 
-export const MATCH_ID = '76818172-d262-4503-936d-603700d82576'
-export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
+export const MATCH_IDS = [
+  '76818172-d262-4503-936d-603700d82576',
+  'd2b2a013-9b2f-4d3f-8603-a3d1943ee243',
+]
+export const TEAM_ID = '457b3eca-e4da-4b91-b884-8598abe46820'
 
 function flipEvent(ev) {
   return {
@@ -15,48 +18,55 @@ function flipEvent(ev) {
   }
 }
 
-/** If the event's team_direction is R2L, mirror coordinates so everything is L2R. */
 function normaliseToL2R(ev) {
   return ev.team_direction === 'R2L' ? flipEvent(ev) : ev
 }
 
 export function useMatchData() {
-  const [match, setMatch]       = useState(null)
-  const [lineups, setLineups]   = useState([])
-  const [allStats, setAllStats] = useState({})
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
+  const [matches, setMatches]               = useState([])
+  const [allLineups, setAllLineups]         = useState([])
+  const [lineupsByMatch, setLineupsByMatch] = useState({})
+  const [aggregatedStats, setAggregatedStats] = useState({})
+  const [statsByMatch, setStatsByMatch]     = useState({})
+  const [loading, setLoading]               = useState(true)
+  const [error, setError]                   = useState(null)
 
   useEffect(() => {
     if (!hasCredentials) { setLoading(false); return }
 
     async function load() {
       try {
-        // 1. Match info — flat fetch to avoid FK embedding path errors
-        const { data: matchData, error: mErr } = await supabase
-          .from('matches')
-          .select('*')
-          .eq('match_id', MATCH_ID)
-          .single()
-        if (mErr) throw mErr
+        // 1. Fetch all match info in parallel
+        const matchResults = await Promise.all(
+          MATCH_IDS.map(mid =>
+            supabase.from('matches').select('*').eq('match_id', mid).single()
+          )
+        )
 
-        // 2. Resolve team names separately
-        const teamIds = [matchData.home_team_id, matchData.away_team_id].filter(Boolean)
+        // 2. Resolve team names
+        const allTeamIds = [...new Set(
+          matchResults.flatMap(r => [r.data?.home_team_id, r.data?.away_team_id].filter(Boolean))
+        )]
         const { data: teamsData } = await supabase
-          .from('teams')
-          .select('team_id,team_name')
-          .in('team_id', teamIds)
+          .from('teams').select('team_id,team_name').in('team_id', allTeamIds)
         const teamsMap = {}
         for (const t of (teamsData || [])) teamsMap[t.team_id] = t
-        matchData.home_team = teamsMap[matchData.home_team_id] || null
-        matchData.away_team = teamsMap[matchData.away_team_id] || null
 
-        // 3. Lineups — flat fetch then attach player name from separate query
+        const matchesData = matchResults
+          .map(r => r.data)
+          .filter(Boolean)
+          .map(m => ({
+            ...m,
+            home_team: teamsMap[m.home_team_id] || null,
+            away_team: teamsMap[m.away_team_id] || null,
+          }))
+
+        // 3. Fetch lineups for all matches in one query
         const { data: lineupData, error: lErr } = await supabase
           .from('lineups')
           .select('*')
-          .eq('match_id', MATCH_ID)
           .eq('team_id', TEAM_ID)
+          .in('match_id', MATCH_IDS)
           .order('starting_xi', { ascending: false })
         if (lErr) throw lErr
 
@@ -70,50 +80,86 @@ export function useMatchData() {
             .in('player_id', playerIds)
           for (const p of (ps || [])) playerMap[p.player_id] = p
         }
+
         const enrichedLineups = (lineupData || []).map(l => ({
           ...l,
           player: playerMap[l.player_id] || null,
         }))
 
-        // 5. Events — try match_events first, fall back to processed_match_events
-        let eventData = []
-        const { data: raw } = await supabase
+        // Group lineups by match_id
+        const lByMatch = {}
+        for (const l of enrichedLineups) {
+          if (!lByMatch[l.match_id]) lByMatch[l.match_id] = []
+          lByMatch[l.match_id].push(l)
+        }
+
+        // Union lineup across all matches — dedupe by player_id, prefer starting_xi=true
+        const seenPlayers = new Map()
+        for (const l of enrichedLineups) {
+          if (!seenPlayers.has(l.player_id) || l.starting_xi) {
+            seenPlayers.set(l.player_id, l)
+          }
+        }
+        const unionLineups = [...seenPlayers.values()]
+          .sort((a, b) => (b.starting_xi ? 1 : 0) - (a.starting_xi ? 1 : 0))
+
+        // 5. Fetch events for all matches
+        const teamPlayerIdSet = new Set(playerIds)
+
+        const { data: rawEvents } = await supabase
           .from('match_events')
           .select('*')
-          .eq('match_id', MATCH_ID)
+          .in('match_id', MATCH_IDS)
           .order('match_time_seconds')
 
-        if (raw && raw.length > 0) {
-          eventData = raw
-        } else {
+        let eventData = rawEvents
+        if (!eventData || eventData.length === 0) {
           const { data: proc, error: procErr } = await supabase
             .from('processed_match_events')
             .select('*')
-            .eq('match_id', MATCH_ID)
+            .in('match_id', MATCH_IDS)
             .order('match_time_seconds')
           if (procErr) throw procErr
           eventData = proc || []
         }
 
-        // 6. Filter to MKS players only, group by player
-        const teamPlayerIds = new Set(playerIds)
-        const byPlayer = {}
+        // 6. Group events by match_id then player_id, normalise L2R
+        const eventsByMatchByPlayer = {}
         for (const ev of eventData) {
-          if (!teamPlayerIds.has(ev.player_id)) continue
-          if (!byPlayer[ev.player_id]) byPlayer[ev.player_id] = []
-          byPlayer[ev.player_id].push(ev)
+          if (!teamPlayerIdSet.has(ev.player_id)) continue
+          const mid = ev.match_id
+          if (!eventsByMatchByPlayer[mid]) eventsByMatchByPlayer[mid] = {}
+          if (!eventsByMatchByPlayer[mid][ev.player_id]) eventsByMatchByPlayer[mid][ev.player_id] = []
+          eventsByMatchByPlayer[mid][ev.player_id].push(normaliseToL2R(ev))
         }
 
-        // 7. Normalise each player's events to L2R, then compute stats
-        const stats = {}
-        for (const [pid, evs] of Object.entries(byPlayer)) {
-          const normalised = evs.map(normaliseToL2R)
-          stats[pid] = calcPlayerStats(normalised)
+        // 7. Stats per match
+        const sByMatch = {}
+        for (const [mid, byPlayer] of Object.entries(eventsByMatchByPlayer)) {
+          sByMatch[mid] = {}
+          for (const [pid, evs] of Object.entries(byPlayer)) {
+            sByMatch[mid][pid] = calcPlayerStats(evs)
+          }
         }
 
-        setMatch(matchData)
-        setLineups(enrichedLineups)
-        setAllStats(stats)
+        // 8. Aggregated stats — combine events across all matches per player
+        const allEventsByPlayer = {}
+        for (const byPlayer of Object.values(eventsByMatchByPlayer)) {
+          for (const [pid, evs] of Object.entries(byPlayer)) {
+            if (!allEventsByPlayer[pid]) allEventsByPlayer[pid] = []
+            allEventsByPlayer[pid].push(...evs)
+          }
+        }
+        const aggStats = {}
+        for (const [pid, evs] of Object.entries(allEventsByPlayer)) {
+          aggStats[pid] = calcPlayerStats(evs)
+        }
+
+        setMatches(matchesData)
+        setAllLineups(unionLineups)
+        setLineupsByMatch(lByMatch)
+        setStatsByMatch(sByMatch)
+        setAggregatedStats(aggStats)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -123,5 +169,5 @@ export function useMatchData() {
     load()
   }, [])
 
-  return { match, lineups, allStats, loading, error }
+  return { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error }
 }

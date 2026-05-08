@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
-import { useMatchData } from './hooks/useMatchData.js'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { useMatchData, TEAM_ID } from './hooks/useMatchData.js'
 import { hasCredentials } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
@@ -239,8 +239,43 @@ function FullComparison({ statsA, statsB, lineupA, lineupB, t }) {
   )
 }
 
+function PlayerRow({ p, allStats, getRowColor, handleSelect, t }) {
+  const col = getRowColor(p.player_id)
+  return (
+    <div onClick={() => handleSelect(p.player_id)} style={S.playerRow(!!col, col || '#FFD166')}>
+      <span style={{ minWidth: 18, fontSize: 9, opacity: 0.5, textAlign: 'right' }}>{p.jersey_no ?? '—'}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
+        {p.player?.player_name ?? 'Unknown'}
+      </span>
+      {!allStats[p.player_id] && (
+        <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
+      )}
+    </div>
+  )
+}
+
+// Helper: get the opponent name for MKS in a given match
+function getOpponent(match) {
+  if (!match) return ''
+  return match.home_team_id === TEAM_ID
+    ? (match.away_team?.team_name ?? 'Unknown')
+    : (match.home_team?.team_name ?? 'Unknown')
+}
+
+// Helper: short match label for buttons
+function matchLabel(match) {
+  if (!match) return ''
+  const opp  = getOpponent(match)
+  const date = match.match_date ? String(match.match_date).slice(0, 10) : ''
+  return `vs ${opp}${date ? ' · ' + date : ''}`
+}
+
 export default function App() {
-  const { match, lineups, allStats, loading, error } = useMatchData()
+  const { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error } = useMatchData()
+
+  // null = aggregate (all matches), or a specific match_id
+  const [selectedMatchId, setSelectedMatchId] = useState(null)
+
   const [mode, setMode] = useState('single') // 'single' | 'compare'
   const [playerA, setPlayerA] = useState(null)
   const [playerB, setPlayerB] = useState(null)
@@ -250,8 +285,20 @@ export default function App() {
   const reportRefA = useRef(null)
   const reportRefB = useRef(null)
 
+  // Derived display values based on selected match
+  const allStats = selectedMatchId ? (statsByMatch[selectedMatchId] ?? {}) : aggregatedStats
+  const lineups  = selectedMatchId ? (lineupsByMatch[selectedMatchId] ?? []) : allLineups
+  const match    = selectedMatchId ? (matches.find(m => m.match_id === selectedMatchId) ?? null) : null
+
   const starters = lineups.filter(l => l.starting_xi)
   const subs     = lineups.filter(l => !l.starting_xi)
+
+  // Reset player selection when match filter changes
+  const switchMatch = useCallback((mid) => {
+    setSelectedMatchId(mid)
+    setPlayerA(null)
+    setPlayerB(null)
+  }, [])
 
   const selectedId = mode === 'single' ? playerA : null
 
@@ -326,9 +373,9 @@ export default function App() {
           </span>
         )}
         <div style={{ flex: 1 }} />
-        {match && (
+        {!loading && (
           <span style={{ fontSize: 10, color: '#888', fontFamily: 'var(--font)', letterSpacing: 1, textTransform: 'uppercase' }}>
-            {match.match_name} · {match.match_date}
+            {selectedMatchId ? matchLabel(match) : `All Matches · ${matches.length} games`}
           </span>
         )}
         {/* Language toggle */}
@@ -354,13 +401,61 @@ export default function App() {
         <aside style={S.sidebar}>
           <div style={S.sideHeader}>
             <div style={{ fontSize: 8, letterSpacing: 2, color: '#FFD166', fontWeight: 700, fontFamily: 'var(--font)', textTransform: 'uppercase', marginBottom: 4 }}>
-              MKS Podlasie
+              MKS Podlasie Sokołów Podlaski
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font)', textTransform: 'uppercase', lineHeight: 1.3 }}>
-              {loading ? 'LOADING…' : (match?.home_team?.team_name ?? match?.away_team?.team_name ?? 'MKS')}
-            </div>
+
+            {/* ── Match selector ── */}
+            {!loading && matches.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* All matches button */}
+                <button
+                  onClick={() => switchMatch(null)}
+                  style={{
+                    fontFamily: 'var(--font)', fontWeight: 700, fontSize: 9, letterSpacing: 1,
+                    textTransform: 'uppercase', padding: '5px 8px', cursor: 'pointer',
+                    border: '2px solid',
+                    borderColor: selectedMatchId === null ? '#FFD166' : '#444',
+                    background: selectedMatchId === null ? '#FFD166' : 'transparent',
+                    color: selectedMatchId === null ? '#000' : '#aaa',
+                    textAlign: 'left',
+                  }}
+                >
+                  ★ All Matches ({matches.length})
+                </button>
+                {/* Per-match buttons */}
+                {matches.map(m => {
+                  const active = selectedMatchId === m.match_id
+                  const opp  = getOpponent(m)
+                  const date = m.match_date ? String(m.match_date).slice(0, 10) : ''
+                  const score = m.home_team_score != null
+                    ? ` ${m.home_team_score}–${m.away_team_score}`
+                    : ''
+                  return (
+                    <button
+                      key={m.match_id}
+                      onClick={() => switchMatch(m.match_id)}
+                      style={{
+                        fontFamily: 'var(--font)', fontWeight: 700, fontSize: 9, letterSpacing: 1,
+                        textTransform: 'uppercase', padding: '5px 8px', cursor: 'pointer',
+                        border: '2px solid',
+                        borderColor: active ? '#FFD166' : '#444',
+                        background: active ? '#FFD166' : 'transparent',
+                        color: active ? '#000' : '#aaa',
+                        textAlign: 'left',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      vs {opp}{score}
+                      {date && <span style={{ display: 'block', fontWeight: 400, opacity: 0.7 }}>{date}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Score for selected match */}
             {match?.home_team_score != null && (
-              <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 4, marginTop: 6, fontFamily: 'var(--font)' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 4, marginTop: 8, fontFamily: 'var(--font)' }}>
                 {match.home_team_score} – {match.away_team_score}
               </div>
             )}
@@ -374,36 +469,20 @@ export default function App() {
 
           {!loading && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {starters.length > 0 && <div style={S.sectionLabel}>{t('startingXi')}</div>}
-              {starters.map(p => {
-                const col = getRowColor(p.player_id)
-                return (
-                  <div key={p.lineup_id} onClick={() => handleSelect(p.player_id)} style={S.playerRow(!!col, col || '#FFD166')}>
-                    <span style={{ minWidth: 18, fontSize: 9, opacity: 0.5, textAlign: 'right' }}>{p.jersey_no ?? '—'}</span>
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
-                      {p.player?.player_name ?? 'Unknown'}
-                    </span>
-                    {!allStats[p.player_id] && (
-                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
-                    )}
-                  </div>
-                )
-              })}
-              {subs.length > 0 && <div style={S.sectionLabel}>{t('substitutes')}</div>}
-              {subs.map(p => {
-                const col = getRowColor(p.player_id)
-                return (
-                  <div key={p.lineup_id} onClick={() => handleSelect(p.player_id)} style={S.playerRow(!!col, col || '#FFD166')}>
-                    <span style={{ minWidth: 18, fontSize: 9, opacity: 0.5, textAlign: 'right' }}>{p.jersey_no ?? '—'}</span>
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
-                      {p.player?.player_name ?? 'Unknown'}
-                    </span>
-                    {!allStats[p.player_id] && (
-                      <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
-                    )}
-                  </div>
-                )
-              })}
+              {selectedMatchId
+                /* Per-match: show starters / subs */
+                ? <>
+                    {starters.length > 0 && <div style={S.sectionLabel}>{t('startingXi')}</div>}
+                    {starters.map(p => <PlayerRow key={p.lineup_id ?? p.player_id} p={p} allStats={allStats} getRowColor={getRowColor} handleSelect={handleSelect} t={t} />)}
+                    {subs.length > 0 && <div style={S.sectionLabel}>{t('substitutes')}</div>}
+                    {subs.map(p => <PlayerRow key={p.lineup_id ?? p.player_id} p={p} allStats={allStats} getRowColor={getRowColor} handleSelect={handleSelect} t={t} />)}
+                  </>
+                /* Aggregate: show all players, grouped by match appearance */
+                : <>
+                    <div style={S.sectionLabel}>All Players · {matches.length} Matches</div>
+                    {lineups.map(p => <PlayerRow key={p.player_id} p={p} allStats={allStats} getRowColor={getRowColor} handleSelect={handleSelect} t={t} />)}
+                  </>
+              }
             </div>
           )}
 
@@ -518,9 +597,11 @@ export default function App() {
                 <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 16, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>
                   {loading ? t('loadingMatch') : mode === 'compare' ? t('selectTwoPlayers') : t('selectAPlayer')}
                 </div>
-                {!loading && match && (
+                {!loading && (
                   <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.4 }}>
-                    {match.match_name} · {match.match_date}
+                    {selectedMatchId
+                      ? matchLabel(match)
+                      : `All Matches · ${matches.length} games · MKS Podlasie Sokołów Podlaski`}
                   </div>
                 )}
               </div>
@@ -529,13 +610,13 @@ export default function App() {
               {!loading && Object.keys(allStats).length > 0 && (
                 <div style={{ border: BT }}>
                   <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: FONT }}>
-                    TEAM PASS NETWORK — {match?.match_name ?? ''}
+                    TEAM PASS NETWORK — {selectedMatchId ? matchLabel(match) : `ALL MATCHES (${matches.length})`}
                   </div>
                   <div style={{ padding: 12 }}>
                     <PassNetwork allStats={allStats} lineups={lineups} />
                   </div>
                   <div style={{ padding: '6px 14px', borderTop: BT, fontFamily: FONT, fontSize: 9, letterSpacing: 1, opacity: 0.5, textTransform: 'uppercase' }}>
-                    Node size = pass volume · Line thickness = pass frequency · Select a player from the sidebar
+                    Circle size = pass accuracy · Line thickness = passes between players
                   </div>
                 </div>
               )}
