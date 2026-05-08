@@ -283,20 +283,24 @@ function matchLabel(match) {
 export default function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('cac_auth') === '1')
 
-  if (!authed) {
-    return <Login onLogin={() => setAuthed(true)} />
-  }
-
-  return <AppInner onLogout={() => { localStorage.removeItem('cac_auth'); setAuthed(false) }} />
+  return (
+    <AppInner
+      authed={authed}
+      onLogin={() => setAuthed(true)}
+      onLogout={() => { localStorage.removeItem('cac_auth'); setAuthed(false) }}
+    />
+  )
 }
 
-function AppInner({ onLogout }) {
+function AppInner({ authed, onLogin, onLogout }) {
   const { matches, allLineups, lineupsByMatch, aggregatedStats, statsByMatch, loading, error } = useMatchData()
 
   // null = aggregate (all matches), or a specific match_id
   const [selectedMatchId, setSelectedMatchId] = useState(null)
 
   // top-level view tab: 'squad' | 'team' | 'player' | 'compare'
+  // restricted tabs require login
+  const RESTRICTED = ['squad', 'team', 'compare']
   const [viewTab, setViewTab] = useState('player')
 
   const [mode, setMode] = useState('single') // 'single' | 'compare'
@@ -383,23 +387,27 @@ function AppInner({ onLogout }) {
 
         {/* View tabs */}
         {[
+          { key: 'player',  label: 'Player'  },
           { key: 'squad',   label: 'Squad'   },
           { key: 'team',    label: 'Team'    },
-          { key: 'player',  label: 'Player'  },
           { key: 'compare', label: 'Compare' },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            style={S.modeBtn(viewTab === key)}
-            onClick={() => {
-              setViewTab(key)
-              if (key === 'player') setMode('single')
-              if (key === 'compare') setMode('compare')
-            }}
-          >
-            {label}
-          </button>
-        ))}
+        ].map(({ key, label }) => {
+          const locked = RESTRICTED.includes(key) && !authed
+          return (
+            <button
+              key={key}
+              style={{ ...S.modeBtn(viewTab === key), opacity: locked ? 0.5 : 1 }}
+              onClick={() => {
+                if (locked) { setViewTab('__login__'); return }
+                setViewTab(key)
+                if (key === 'player') setMode('single')
+                if (key === 'compare') setMode('compare')
+              }}
+            >
+              {locked ? '🔒 ' : ''}{label}
+            </button>
+          )
+        })}
 
         {viewTab === 'compare' && (
           <span style={{ fontSize: 10, color: '#888', marginLeft: 12, fontFamily: 'var(--font)', letterSpacing: 1 }}>
@@ -436,18 +444,16 @@ function AppInner({ onLogout }) {
             </button>
           ))}
         </div>
-        {/* Logout */}
-        <button
-          onClick={onLogout}
-          style={{
-            fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1,
-            textTransform: 'uppercase', padding: '4px 12px', marginLeft: 8,
-            background: 'transparent', color: '#888',
-            border: '2px solid #444', cursor: 'pointer',
-          }}
-        >
-          Logout
-        </button>
+        {/* Auth button */}
+        {authed ? (
+          <button onClick={onLogout} style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', padding: '4px 12px', marginLeft: 8, background: 'transparent', color: '#888', border: '2px solid #444', cursor: 'pointer' }}>
+            Logout
+          </button>
+        ) : (
+          <button onClick={() => setViewTab('__login__')} style={{ fontFamily: 'var(--font)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', padding: '4px 12px', marginLeft: 8, background: '#FFD166', color: '#000', border: '2px solid #FFD166', cursor: 'pointer' }}>
+            🔒 Coach Login
+          </button>
+        )}
       </nav>
 
       <div style={{ display: 'flex', flex: 1 }}>
@@ -548,6 +554,13 @@ function AppInner({ onLogout }) {
 
         {/* ── Main ─────────────────────────────────────────────── */}
         <main style={{ flex: 1, overflowY: 'auto', background: '#fff' }}>
+
+          {/* LOGIN prompt */}
+          {viewTab === '__login__' && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+              <Login onLogin={() => { onLogin(); setViewTab('squad') }} />
+            </div>
+          )}
 
           {/* SQUAD view */}
           {viewTab === 'squad' && (
