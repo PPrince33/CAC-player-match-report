@@ -42,7 +42,7 @@ function shotRadius(xg) {
   return Math.min(18, Math.max(4, r))
 }
 
-export default function ShotMapPitch({ shots = [] }) {
+export default function ShotMapPitch({ shots = [], playerName }) {
   const containerRef = useRef(null)
   const canvasRef    = useRef(null)
   const hitRegionsRef = useRef([])
@@ -145,7 +145,7 @@ export default function ShotMapPitch({ shots = [] }) {
       setTooltip({
         visible: true, x: mouseX, y: mouseY,
         fields: [
-          { label: 'PLAYER',  value: s.player_name ?? 'N/A' },
+          { label: 'PLAYER',  value: playerName ?? s.player_name ?? 'N/A' },
           { label: 'XG',      value: (s.xg ?? 0).toFixed(2) },
           { label: 'OUTCOME', value: s.outcome ?? 'N/A' },
           { label: 'MIN',     value: minutes },

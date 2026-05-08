@@ -320,7 +320,7 @@ const PlayerReport = forwardRef(function PlayerReport(
             <div>
               {hasShotEvents
                 ? <Module title={t('modShotMap')}>
-                    <ShotMapPitch shots={stats.shotEvents} />
+                    <ShotMapPitch shots={stats.shotEvents} playerName={playerName} />
                   </Module>
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noShots')}</div>
               }
