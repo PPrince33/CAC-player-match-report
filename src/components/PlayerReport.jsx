@@ -100,8 +100,10 @@ const PlayerReport = forwardRef(function PlayerReport(
   const playerName   = player.player?.player_name ?? 'Unknown Player'
   const jerseyNumber = player.jersey_no ?? '—'
   const position     = player.position ?? player.player?.position ?? '—'
-  const matchName    = matchInfo?.match_name ?? '—'
-  const matchDate    = matchInfo?.match_date ?? '—'
+  const matchesPlayed = stats.matchesPlayed   // present only in aggregate mode
+  const isAggregate  = matchesPlayed != null && !matchInfo
+  const matchName    = isAggregate ? `${matchesPlayed} Match${matchesPlayed !== 1 ? 'es' : ''}` : (matchInfo?.match_name ?? '—')
+  const matchDate    = isAggregate ? 'Aggregate Stats' : (matchInfo?.match_date ?? '—')
   const accentColor  = compareColor ?? '#0277B6'
 
   const radarData    = buildRadarData(stats, Object.values(allStats ?? {}))
@@ -176,12 +178,20 @@ const PlayerReport = forwardRef(function PlayerReport(
             <span style={{ opacity: 0.4, borderLeft: B, paddingLeft: 14 }}>{matchDate}</span>
           </div>
         </div>
-        {matchInfo?.home_team_score != null && (
-          <div style={{ borderLeft: BT, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 3 }}>{matchInfo.home_team_score}–{matchInfo.away_team_score}</div>
-            <div style={{ fontSize: 8, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>{t('score')}</div>
-          </div>
-        )}
+        {isAggregate
+          ? (
+            <div style={{ borderLeft: BT, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 2 }}>{matchesPlayed}</div>
+              <div style={{ fontSize: 8, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>Games</div>
+            </div>
+          )
+          : matchInfo?.home_team_score != null && (
+            <div style={{ borderLeft: BT, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 3 }}>{matchInfo.home_team_score}–{matchInfo.away_team_score}</div>
+              <div style={{ fontSize: 8, letterSpacing: 1, opacity: 0.4, textTransform: 'uppercase' }}>{t('score')}</div>
+            </div>
+          )
+        }
       </div>
 
       {/* ── KPI Hero Stats ────────────────────────────────────── */}

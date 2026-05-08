@@ -168,15 +168,17 @@ export function useMatchData() {
 
         // 8. Aggregated stats — combine events across all matches per player
         const allEventsByPlayer = {}
-        for (const byPlayer of Object.values(eventsByMatchByPlayer)) {
+        const matchesPlayedByPlayer = {}   // canonicalId → number of matches with events
+        for (const [mid, byPlayer] of Object.entries(eventsByMatchByPlayer)) {
           for (const [pid, evs] of Object.entries(byPlayer)) {
             if (!allEventsByPlayer[pid]) allEventsByPlayer[pid] = []
             allEventsByPlayer[pid].push(...evs)
+            matchesPlayedByPlayer[pid] = (matchesPlayedByPlayer[pid] ?? 0) + 1
           }
         }
         const aggStats = {}
         for (const [pid, evs] of Object.entries(allEventsByPlayer)) {
-          aggStats[pid] = calcPlayerStats(evs)
+          aggStats[pid] = { ...calcPlayerStats(evs), matchesPlayed: matchesPlayedByPlayer[pid] ?? 1 }
         }
 
         setMatches(matchesData)

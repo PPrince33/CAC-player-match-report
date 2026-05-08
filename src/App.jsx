@@ -239,15 +239,22 @@ function FullComparison({ statsA, statsB, lineupA, lineupB, t }) {
   )
 }
 
-function PlayerRow({ p, allStats, getRowColor, handleSelect, t }) {
-  const col = getRowColor(p.player_id)
+function PlayerRow({ p, allStats, getRowColor, handleSelect, t, showMatchCount = false }) {
+  const col          = getRowColor(p.player_id)
+  const stats        = allStats[p.player_id]
+  const matchesPlayed = stats?.matchesPlayed
   return (
     <div onClick={() => handleSelect(p.player_id)} style={S.playerRow(!!col, col || '#FFD166')}>
       <span style={{ minWidth: 18, fontSize: 9, opacity: 0.5, textAlign: 'right' }}>{p.jersey_no ?? '—'}</span>
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
         {p.player?.player_name ?? 'Unknown'}
       </span>
-      {!allStats[p.player_id] && (
+      {showMatchCount && matchesPlayed != null && (
+        <span style={{ fontSize: 8, background: '#333', color: '#FFD166', padding: '1px 4px', fontWeight: 700, fontFamily: 'var(--font)', letterSpacing: 0.5, flexShrink: 0 }}>
+          {matchesPlayed}G
+        </span>
+      )}
+      {!stats && (
         <span style={{ fontSize: 8, background: '#D90429', color: '#fff', padding: '1px 3px', fontWeight: 700 }}>{t('noData')}</span>
       )}
     </div>
@@ -480,7 +487,7 @@ export default function App() {
                 /* Aggregate: show all players, grouped by match appearance */
                 : <>
                     <div style={S.sectionLabel}>All Players · {matches.length} Matches</div>
-                    {lineups.map(p => <PlayerRow key={p.player_id} p={p} allStats={allStats} getRowColor={getRowColor} handleSelect={handleSelect} t={t} />)}
+                    {lineups.map(p => <PlayerRow key={p.player_id} p={p} allStats={allStats} getRowColor={getRowColor} handleSelect={handleSelect} t={t} showMatchCount />)}
                   </>
               }
             </div>
