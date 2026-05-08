@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useMatchData, TEAM_ID } from './hooks/useMatchData.js'
-import { hasCredentials } from './lib/supabase.js'
+import { hasCredentials, supabase } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
 import { useT } from './utils/translations.js'
@@ -281,13 +281,29 @@ function matchLabel(match) {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => localStorage.getItem('cac_auth') === '1')
+  const [authed, setAuthed] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthed(!!session)
+      setAuthChecked(true)
+    })
+    // Listen for sign in / sign out
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthed(!!session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (!authChecked) return null // wait for session check before rendering
 
   return (
     <AppInner
       authed={authed}
       onLogin={() => setAuthed(true)}
-      onLogout={() => { localStorage.removeItem('cac_auth'); setAuthed(false) }}
+      onLogout={async () => { await supabase.auth.signOut(); setAuthed(false) }}
     />
   )
 }

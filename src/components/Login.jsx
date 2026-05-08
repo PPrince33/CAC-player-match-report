@@ -1,19 +1,27 @@
 import { useState } from 'react'
-
-const CREDENTIALS = { username: 'thomas.mks.cac', password: 'thomas.cac.123' }
+import { supabase } from '../lib/supabase.js'
 
 export default function Login({ onLogin }) {
-  const [username, setUsername] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (username === CREDENTIALS.username && password === CREDENTIALS.password) {
-      localStorage.setItem('cac_auth', '1')
-      onLogin()
-    } else {
-      setError('Invalid credentials. Please try again.')
+    setError('')
+    setLoading(true)
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      if (authError) {
+        setError(authError.message)
+      } else {
+        onLogin()
+      }
+    } catch (err) {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -48,18 +56,19 @@ export default function Login({ onLogin }) {
 
         <form onSubmit={handleSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>
-            Sign in to continue
+            Coach Portal — Sign In
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 700, color: '#333' }}>
-              Username
+              Email
             </label>
             <input
-              type="text"
-              value={username}
-              onChange={e => { setUsername(e.target.value); setError('') }}
-              autoComplete="username"
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError('') }}
+              autoComplete="email"
+              placeholder="you@example.com"
               style={{
                 fontFamily: 'var(--font)',
                 fontSize: 12,
@@ -111,8 +120,9 @@ export default function Login({ onLogin }) {
 
           <button
             type="submit"
+            disabled={loading}
             style={{
-              background: '#FFD166',
+              background: loading ? '#888' : '#FFD166',
               color: '#000',
               border: '2px solid #000',
               fontFamily: 'var(--font)',
@@ -121,11 +131,11 @@ export default function Login({ onLogin }) {
               letterSpacing: 2,
               textTransform: 'uppercase',
               padding: '10px 0',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
               marginTop: 4,
             }}
           >
-            Login
+            {loading ? 'Signing in…' : 'Login'}
           </button>
         </form>
       </div>
