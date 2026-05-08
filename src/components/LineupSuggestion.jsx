@@ -7,9 +7,12 @@ import { useMemo, useRef, useLayoutEffect } from 'react'
 import { drawPitch } from '../utils/pitchRenderer.js'
 
 const FONT = 'var(--font)'
-const ASPECT = 105 / 68
+// Portrait: pitch is taller than wide (68 wide × 105 tall)
+// x (0→120) is the vertical axis — attack goes UP (high x = top)
+// y (0→80)  is the horizontal axis — y=0 left, y=80 right
+const ASPECT = 68 / 105  // width / height  → canvas height = w / ASPECT
 
-// 4-4-2 slot definitions: pitch coords in data space (x: 0–120, y: 0–80, attack = high x)
+// 4-4-2 slot definitions: data space x=0–120 (bottom→top, attack=high x), y=0–80 (left→right)
 const SLOTS = [
   { id: 'LB',   label: 'LB',  type: 'FB',  x: 22, y: 12 },
   { id: 'CB1',  label: 'CB',  type: 'CB',  x: 20, y: 30 },
@@ -28,8 +31,14 @@ function lastName(name = '') {
   return parts[parts.length - 1].toUpperCase()
 }
 
+// Portrait mapping:
+//   x (0–120) → vertical: x=0 (defense) = bottom, x=120 (attack) = top
+//   y (0–80)  → horizontal: y=0 = left edge, y=80 = right edge
 function mapCoords(x, y, w, h) {
-  return { px: (x / 120) * w, py: (1 - y / 80) * h }
+  return {
+    px: (y / 80) * w,          // y maps left→right
+    py: (1 - x / 120) * h,    // x maps bottom→top (attack = top)
+  }
 }
 
 /** Score a player for a given slot type. All values normalised against squad max. */
@@ -133,6 +142,7 @@ function PitchCanvas({ lineup, lineups }) {
 
     function draw(w) {
       if (w <= 0) return
+      // Portrait: height = w * (105/68)
       const h   = w / ASPECT
       const dpr = window.devicePixelRatio || 1
       canvas.width        = w * dpr
@@ -142,7 +152,14 @@ function PitchCanvas({ lineup, lineups }) {
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.scale(dpr, dpr)
-      drawPitch(ctx, w, h)
+
+      // Rotate canvas 90° clockwise so drawPitch (horizontal) becomes portrait
+      // drawPitch needs (width=h, height=w) in rotated space
+      ctx.save()
+      ctx.translate(w, 0)
+      ctx.rotate(Math.PI / 2)
+      drawPitch(ctx, h, w)
+      ctx.restore()
 
       const r      = Math.max(8, Math.min(16, w / 50))
       const fsName = Math.max(6, Math.min(9, w / 70))
