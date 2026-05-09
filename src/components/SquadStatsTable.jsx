@@ -3,23 +3,35 @@ import { useState, useMemo } from 'react'
 const FONT = 'var(--font)'
 
 const COLUMNS = [
-  { key: 'jersey_no',      label: '#',             numeric: true  },
-  { key: 'player_name',    label: 'Player',         numeric: false },
-  { key: 'mp',             label: 'MP',             numeric: true, aggregateOnly: true },
-  { key: 'totalPasses',    label: 'Passes',         numeric: true  },
-  { key: 'passAccuracy',   label: 'Pass%',          numeric: true  },
-  { key: 'completePasses', label: 'Completed',      numeric: true  },
-  { key: 'progPasses',     label: 'Prog. Passes',   numeric: true  },
-  { key: 'ballRecovery',   label: 'Ball Recovery',  numeric: true  },
-  { key: 'duelsWon',       label: 'Duels Won',      numeric: true  },
-  { key: 'tackles',        label: 'Tackles',        numeric: true  },
-  { key: 'interceptions',  label: 'Interceptions',  numeric: true  },
-  { key: 'foulsCommitted', label: 'Fouls',          numeric: true  },
-  { key: 'goals',          label: 'Goals',          numeric: true  },
-  { key: 'totalShots',     label: 'Shots',          numeric: true  },
-  { key: 'totalXG',        label: 'xG',             numeric: true  },
-  { key: 'progCarry',      label: 'Prog. Carry',    numeric: true  },
+  { key: 'jersey_no',      label: '#',                   numeric: true  },
+  { key: 'player_name',    label: 'Player',               numeric: false },
+  { key: 'mp',             label: 'MP',                   numeric: true, aggregateOnly: true },
+  { key: 'totalPasses',    label: 'Passes',               numeric: true  },
+  { key: 'passAccuracy',   label: 'Pass%',                numeric: true  },
+  { key: 'completePasses', label: 'Pass Completed',       numeric: true  },
+  { key: 'progPasses',     label: 'Prog. Passes',         numeric: true  },
+  { key: 'ballRecovery',   label: 'Ball Recovery',        numeric: true  },
+  { key: 'duelsWon',       label: 'Duels Won',            numeric: true  },
+  { key: 'tackles',        label: 'Tackles',              numeric: true  },
+  { key: 'interceptions',  label: 'Interceptions',        numeric: true  },
+  { key: 'foulsCommitted', label: 'Fouls',                numeric: true  },
+  { key: 'goals',          label: 'Goals',                numeric: true  },
+  { key: 'totalShots',     label: 'Shots',                numeric: true  },
+  { key: 'totalXG',        label: 'xG',                   numeric: true  },
+  { key: 'progCarry',      label: 'Prog. Carry',          numeric: true  },
+  { key: 'defContrib',     label: 'Def. Contribution%',   numeric: true  },
+  { key: 'attContrib',     label: 'Att. Contribution%',   numeric: true  },
 ]
+
+// Raw defensive score for a row (used for contribution calc)
+function defScore(row) {
+  return (row.duelsWon ?? 0) + (row.tackles ?? 0) + (row.interceptions ?? 0) + (row.ballRecovery ?? 0)
+}
+
+// Raw attacking score for a row
+function attScore(row) {
+  return (row.goals ?? 0) + (row.totalShots ?? 0) + (row.totalXG ?? 0) + (row.progPasses ?? 0) + (row.progCarry ?? 0)
+}
 
 function getStats(pid, allStats) {
   const s = allStats[pid]
@@ -49,24 +61,21 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
 
   const activeMatchId = localMatch
 
-  // Stats to use
   const activeStats = useMemo(() => {
     if (activeMatchId) return statsByMatch[activeMatchId] ?? {}
     return allStats
   }, [activeMatchId, allStats, statsByMatch])
 
-  // Lineups for active context
   const activeLineups = useMemo(() => {
     if (!activeMatchId) return lineups
-    // filter to players in that match
     const matchStats = statsByMatch[activeMatchId] ?? {}
-    return lineups.filter(l => matchStats[l.player_id] != null || true) // show all, dim missing
+    return lineups.filter(l => matchStats[l.player_id] != null || true)
   }, [activeMatchId, lineups, statsByMatch])
 
   const isAggregate = !activeMatchId
 
-  // Build rows
-  const rows = useMemo(() => {
+  // Build base rows (without contribution columns)
+  const baseRows = useMemo(() => {
     return activeLineups.map(l => {
       const pid = l.player_id
       const stats = getStats(pid, activeStats)
@@ -85,6 +94,23 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
       }
     })
   }, [activeLineups, activeStats])
+
+  // Compute contribution columns across all players with data
+  const rows = useMemo(() => {
+    const withData = baseRows.filter(r => r.hasData)
+    const totalDef = withData.reduce((sum, r) => sum + defScore(r), 0)
+    const totalAtt = withData.reduce((sum, r) => sum + attScore(r), 0)
+
+    return baseRows.map(row => ({
+      ...row,
+      defContrib: row.hasData && totalDef > 0
+        ? Math.round((defScore(row) / totalDef) * 100)
+        : null,
+      attContrib: row.hasData && totalAtt > 0
+        ? Math.round((attScore(row) / totalAtt) * 100)
+        : null,
+    }))
+  }, [baseRows])
 
   // Sort
   const sorted = useMemo(() => {
@@ -122,8 +148,8 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
     textTransform: 'uppercase',
     fontFamily: FONT,
     fontWeight: 700,
-    color: '#FFD166',
-    background: '#000',
+    color: key === 'defContrib' ? '#48CAE4' : key === 'attContrib' ? '#FFD166' : '#FFD166',
+    background: key === 'defContrib' ? '#023E8A' : key === 'attContrib' ? '#D90429' : '#000',
     border: '1px solid #222',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -206,11 +232,16 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
               >
                 {visibleCols.map(col => {
                   let val = row[col.key]
-                  if (col.key === 'passAccuracy') val = val != null ? val + '%' : '—'
-                  else if (col.key === 'totalXG') val = val != null ? val.toFixed(2) : '—'
-                  else if (col.key === 'mp') val = val != null ? val : '—'
+                  if (col.key === 'passAccuracy')  val = val != null ? val + '%' : '—'
+                  else if (col.key === 'totalXG')  val = val != null ? Number(val).toFixed(2) : '—'
+                  else if (col.key === 'mp')        val = val != null ? val : '—'
+                  else if (col.key === 'defContrib' || col.key === 'attContrib')
+                                                    val = val != null ? val + '%' : '—'
                   else if (!row.hasData && col.key !== 'player_name' && col.key !== 'jersey_no') val = '—'
-                  else if (val == null) val = '—'
+                  else if (val == null)             val = '—'
+
+                  const isContrib = col.key === 'defContrib' || col.key === 'attContrib'
+                  const contribColor = col.key === 'defContrib' ? '#023E8A' : '#D90429'
 
                   return (
                     <td
@@ -222,7 +253,8 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
                         fontWeight: col.numeric ? 700 : 400,
                         fontSize: col.numeric ? 12 : 11,
                         whiteSpace: 'nowrap',
-                        color: '#000',
+                        color: isContrib ? contribColor : '#000',
+                        background: isContrib ? (col.key === 'defContrib' ? '#eef4ff' : '#fff5f5') : 'inherit',
                       }}
                     >
                       {col.key === 'jersey_no'
