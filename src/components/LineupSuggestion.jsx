@@ -27,9 +27,9 @@ const SLOTS = [
   { id: 'RST',  label: 'RST', type: 'ST',  side: 'R', x: 90, y: 30 },
 ]
 
-function lastName(name = '') {
+function firstName(name = '') {
   const parts = name.trim().split(' ')
-  return parts[parts.length - 1].toUpperCase()
+  return parts[0].toUpperCase()
 }
 
 // Portrait mapping (after 90° clockwise canvas rotation):
@@ -360,7 +360,7 @@ function PitchCanvas({ lineup }) {
         ctx.font         = `bold ${fsName}px ${FONT}`
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillText(lastName(entry.player?.player?.player_name ?? ''), px, py + r + 2)
+        ctx.fillText(firstName(entry.player?.player?.player_name ?? ''), px, py + r + 2)
         ctx.restore()
       }
     }
