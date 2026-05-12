@@ -606,7 +606,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 9, opacity: 0.4 }}>#{jersey}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{firstName(name)}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{name}</span>
                       {isPoor && <span style={{ fontSize: 7, background: '#D90429', color: '#fff', padding: '1px 4px', fontWeight: 700 }}>⚠ POOR FIT</span>}
                     </div>
                     {(entry.top2 ?? []).map((m, i) => (
@@ -689,7 +689,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
                     }}
                   >
                     <span style={{ fontSize: 9, opacity: 0.4, minWidth: 22 }}>#{player.jersey_no ?? '—'}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{firstName(name)}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{name}</span>
 
                     {/* Ratings per position type */}
                     <div style={{ display: 'flex', gap: 4 }}>

@@ -382,7 +382,7 @@ export default function PassNetwork({ allStats, lineups }) {
                 }}
               >
                 <span style={{ minWidth: 18, fontSize: 9, opacity: 0.7, textAlign: 'right', fontWeight: 700 }}>{jersey}</span>
-                <span style={{ marginLeft: 6, fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lname}</span>
+                <span style={{ marginLeft: 6, fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
                 {!isStarter && <span style={{ marginLeft: 'auto', fontSize: 7, opacity: 0.5, letterSpacing: 1 }}>SUB</span>}
               </button>
             </div>

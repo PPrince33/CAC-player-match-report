@@ -221,7 +221,7 @@ export default function AveragePitchLocations({ allStats, lineups }) {
         {starters.map(p => (
           <button key={p.player_id} onClick={() => toggle(p.player_id)} style={selectedIds.has(p.player_id) ? btnOn : btnBase}>
             <span style={{ opacity: 0.6, marginRight: 5 }}>{p.jersey_no}</span>
-            {lastName(p.player?.player_name ?? '')}
+            {p.player?.player_name ?? ''}
           </button>
         ))}
 
@@ -231,7 +231,7 @@ export default function AveragePitchLocations({ allStats, lineups }) {
         {subs.map(p => (
           <button key={p.player_id} onClick={() => toggle(p.player_id)} style={selectedIds.has(p.player_id) ? btnOn : btnBase}>
             <span style={{ opacity: 0.6, marginRight: 5 }}>{p.jersey_no}</span>
-            {lastName(p.player?.player_name ?? '')}
+            {p.player?.player_name ?? ''}
           </button>
         ))}
       </div>
