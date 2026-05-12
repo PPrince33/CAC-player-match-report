@@ -5,6 +5,7 @@ import { calcPlayerStats } from '../utils/stats.js'
 export const MATCH_IDS = [
   '76818172-d262-4503-936d-603700d82576',
   'd2b2a013-9b2f-4d3f-8603-a3d1943ee243',
+  '4e7c84bf-e3c1-456d-b35b-ea508e0c2205',
 ]
 export const TEAM_ID = '457b3eca-e4da-4b91-b884-8598abe46820'
 
