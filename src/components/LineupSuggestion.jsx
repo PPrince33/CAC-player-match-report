@@ -1,22 +1,24 @@
 /**
- * LineupSuggestion — Football Data Scientist approach
+ * LineupSuggestion — Interactive 4-4-2 with drag-and-drop (FIFA-style)
  *
- * Pipeline:
- *  1. Extract per-player metrics (P90 normalised)
- *  2. Percentile-rank every metric across the squad (0–100)
- *  3. Compute position-specific composite ratings via weighted percentile sums
- *  4. Determine each player's natural position from avg pitch coordinates
- *  5. Greedy 4-4-2 slot assignment: composite rating (65%) + spatial fit (35%)
- *  6. Render pitch + justified selection panel (rating + top-2 metrics)
+ * Algorithm pipeline (unchanged):
+ *  1. Extract P90 metrics from all-matches aggregate stats
+ *  2. Percentile-rank every metric across the squad
+ *  3. Position-specific composite ratings (0–100) via weighted percentile sums
+ *  4. Greedy slot assignment: composite rating (65%) + spatial proximity (35%)
+ *
+ * Interactive features:
+ *  - Drag players between pitch slots (swap)
+ *  - Drag bench players onto pitch slots (replace + see live composite rating)
+ *  - Hover preview: shows what composite rating a bench player would get at that position
+ *  - Reset button to restore algorithm suggestion
  */
-import { useMemo, useRef, useLayoutEffect } from 'react'
+import { useMemo, useState, useRef, useLayoutEffect, useCallback, useEffect } from 'react'
 import { drawPitch } from '../utils/pitchRenderer.js'
 
 const FONT   = 'var(--font)'
-const ASPECT = 68 / 105   // portrait width / height
+const ASPECT = 68 / 105
 
-// 4-4-2 slots — y-axis: after 90° canvas rotation y=0→screen-RIGHT, y=80→screen-LEFT
-// LEFT slots use HIGH y; RIGHT slots use LOW y
 const SLOTS = [
   { id: 'LCB', label: 'LCB', type: 'CB', side: 'L', x: 20, y: 54 },
   { id: 'RCB', label: 'RCB', type: 'CB', side: 'R', x: 20, y: 26 },
@@ -31,56 +33,45 @@ const SLOTS = [
 ]
 
 const GK_POSITIONS = new Set(['gk', 'goalkeeper'])
+const POOR_FIT     = 45
+const posColors    = { CB: '#0077B6', FB: '#00B4D8', CM: '#023E8A', WM: '#48CAE4', ST: '#D90429' }
 
-function firstName(name = '') {
-  return name.trim().split(' ')[0].toUpperCase()
+function firstName(name = '') { return name.trim().split(' ')[0].toUpperCase() }
+
+// CSS % position of a slot on the pitch div
+function slotStyle(x, y) {
+  return {
+    left: `${(1 - y / 80) * 100}%`,
+    top:  `${(1 - x / 120) * 100}%`,
+  }
 }
 
-// Portrait mapping: flip y so y=80→LEFT, y=0→RIGHT (matches rotated drawPitch)
-function mapCoords(x, y, w, h) {
-  return { px: (1 - y / 80) * w, py: (1 - x / 120) * h }
-}
-
-// ─── 1. Metric Extraction (P90 normalised) ────────────────────────────────────
-
+// ─── Metric Extraction (P90) ──────────────────────────────────────────────────
 function extractMetrics(pid, allStats) {
-  const s = allStats[pid]
-  if (!s) return null
-
+  const s = allStats[pid]; if (!s) return null
   const mp  = Math.max(s.matchesPlayed ?? 1, 1)
   const p90 = v => (v ?? 0) / mp
-
-  const totalShots    = s.totalShots    ?? 0
+  const totalShots    = s.totalShots ?? 0
   const shotsOnTarget = s.shotsOnTarget ?? 0
-  const goals         = s.goals         ?? 0
-  const dribbles      = s.dribbles      ?? 0
-  const succDribbles  = s.succDribbles  ?? 0
-  const totalPasses   = s.totalPasses   ?? 0
+  const goals         = s.goals        ?? 0
+  const dribbles      = s.dribbles     ?? 0
+  const succDribbles  = s.succDribbles ?? 0
+  const totalPasses   = s.totalPasses  ?? 0
   const ownHP         = s.ownHalfPasses ?? 0
   const succOwnHP     = s.succOwnHalfPasses ?? 0
-  const tackles       = s.tackles       ?? 0
-  const succTackles   = s.succTackles   ?? 0
-
+  const tackles       = s.tackles      ?? 0
+  const succTackles   = s.succTackles  ?? 0
   return {
-    // ── Shooting ──
-    totalShots:      p90(totalShots),
-    shotsOnTarget:   p90(shotsOnTarget),
-    goals:           p90(goals),
-    xG:              p90(s.totalXG   ?? 0),
+    totalShots:      p90(totalShots),    shotsOnTarget:   p90(shotsOnTarget),
+    goals:           p90(goals),         xG:              p90(s.totalXG   ?? 0),
     xGOT:            p90(s.totalXGOT ?? 0),
     conversionRate:  totalShots    > 0 ? goals        / totalShots    : 0,
     shotAccuracy:    totalShots    > 0 ? shotsOnTarget / totalShots   : 0,
-
-    // ── Dribbling & Carries ──
-    dribbles:        p90(dribbles),
-    succDribbles:    p90(succDribbles),
+    dribbles:        p90(dribbles),      succDribbles:    p90(succDribbles),
     dribbleSuccRate: dribbles      > 0 ? succDribbles / dribbles      : 0,
     carriesIntoFT:   p90(s.carriesIntoFT  ?? 0),
     carriesIntoBox:  p90(s.carriesIntoBox ?? 0),
-
-    // ── Passing ──
-    totalPasses:     p90(totalPasses),
-    passAccuracy:    s.passAccuracy ?? 0,     // already 0–100 %
+    totalPasses:     p90(totalPasses),   passAccuracy:    s.passAccuracy ?? 0,
     progPasses:      p90(s.progPasses        ?? 0),
     succProgPasses:  p90(s.successProgPasses ?? 0),
     longBalls:       p90(s.longBalls         ?? 0),
@@ -91,11 +82,8 @@ function extractMetrics(pid, allStats) {
     assists:         p90(s.assists           ?? 0),
     ownHalfPasses:   p90(ownHP),
     oppHalfPasses:   p90(s.oppHalfPasses     ?? 0),
-    ownHalfPassAcc:  ownHP > 0 ? (succOwnHP / ownHP) * 100 : 0,  // 0–100 %
-
-    // ── Defensive ──
-    tackles:         p90(tackles),
-    succTackles:     p90(succTackles),
+    ownHalfPassAcc:  ownHP > 0 ? (succOwnHP / ownHP) * 100 : 0,
+    tackles:         p90(tackles),       succTackles:     p90(succTackles),
     tackleSuccRate:  tackles       > 0 ? succTackles / tackles        : 0,
     interceptions:   p90(s.interceptions ?? 0),
     intRegain:       p90(s.intRegain     ?? 0),
@@ -103,29 +91,22 @@ function extractMetrics(pid, allStats) {
     pressures:       p90(s.pressures     ?? 0),
     blocks:          p90(s.blocks        ?? 0),
     clearances:      p90(s.clearances    ?? 0),
-
-    // ── Meta ──
-    mp,
-    passPerMatch: p90(totalPasses) * mp,   // raw passes per match
+    mp, passPerMatch: p90(totalPasses) * mp,
   }
 }
 
-// ─── 2. Percentile Ranking ────────────────────────────────────────────────────
-
+// ─── Percentile Ranking ───────────────────────────────────────────────────────
 function buildPercentileRanker(playerIds, metrics) {
-  const skipKeys = new Set(['mp', 'passPerMatch'])
+  const skip = new Set(['mp', 'passPerMatch'])
   const dists = {}
-
   for (const pid of playerIds) {
-    const m = metrics[pid]
-    if (!m) continue
+    const m = metrics[pid]; if (!m) continue
     for (const [k, v] of Object.entries(m)) {
-      if (skipKeys.has(k)) continue
+      if (skip.has(k)) continue
       if (!dists[k]) dists[k] = []
       dists[k].push(v)
     }
   }
-
   return function rank(pid, key) {
     const val  = metrics[pid]?.[key] ?? 0
     const dist = dists[key] ?? []
@@ -136,48 +117,47 @@ function buildPercentileRanker(playerIds, metrics) {
   }
 }
 
-// ─── 3. Position-Specific Composite Ratings ───────────────────────────────────
-
+// ─── Position Weights & Composite ────────────────────────────────────────────
 const POSITION_WEIGHTS = {
   CB: [
-    { key: 'aerialDuels',   w: 0.25, label: 'Aerial Duels Won' },
-    { key: 'clearances',    w: 0.20, label: 'Clearances' },
-    { key: 'interceptions', w: 0.20, label: 'Interceptions' },
-    { key: 'succTackles',   w: 0.15, label: 'Tackles Won' },
-    { key: 'ownHalfPassAcc',w: 0.10, label: 'Own-Half Pass Acc%' },
-    { key: 'blocks',        w: 0.10, label: 'Blocks' },
+    { key: 'aerialDuels',    w: 0.25, label: 'Aerial Duels Won'       },
+    { key: 'clearances',     w: 0.20, label: 'Clearances'             },
+    { key: 'interceptions',  w: 0.20, label: 'Interceptions'          },
+    { key: 'succTackles',    w: 0.15, label: 'Tackles Won'            },
+    { key: 'ownHalfPassAcc', w: 0.10, label: 'Own-Half Pass Acc%'     },
+    { key: 'blocks',         w: 0.10, label: 'Blocks'                 },
   ],
   FB: [
-    { key: 'succTackles',   w: 0.20, label: 'Tackles Won' },
-    { key: 'interceptions', w: 0.15, label: 'Interceptions' },
-    { key: 'progPasses',    w: 0.20, label: 'Progressive Passes' },
-    { key: 'crosses',       w: 0.20, label: 'Crosses' },
-    { key: 'carriesIntoFT', w: 0.15, label: 'Carries into Final 3rd' },
-    { key: 'succDribbles',  w: 0.10, label: 'Successful Dribbles' },
+    { key: 'succTackles',   w: 0.20, label: 'Tackles Won'             },
+    { key: 'interceptions', w: 0.15, label: 'Interceptions'           },
+    { key: 'progPasses',    w: 0.20, label: 'Progressive Passes'      },
+    { key: 'crosses',       w: 0.20, label: 'Crosses'                 },
+    { key: 'carriesIntoFT', w: 0.15, label: 'Carries into Final 3rd'  },
+    { key: 'succDribbles',  w: 0.10, label: 'Successful Dribbles'     },
   ],
   CM: [
-    { key: 'totalPasses',   w: 0.15, label: 'Passes P90' },
-    { key: 'passAccuracy',  w: 0.20, label: 'Pass Accuracy%' },
-    { key: 'progPasses',    w: 0.20, label: 'Progressive Passes' },
-    { key: 'oppHalfPasses', w: 0.15, label: 'Passes in Opp. Half' },
-    { key: 'interceptions', w: 0.15, label: 'Interceptions' },
-    { key: 'pressures',     w: 0.15, label: 'Pressures Applied' },
+    { key: 'totalPasses',   w: 0.15, label: 'Passes P90'              },
+    { key: 'passAccuracy',  w: 0.20, label: 'Pass Accuracy%'          },
+    { key: 'progPasses',    w: 0.20, label: 'Progressive Passes'      },
+    { key: 'oppHalfPasses', w: 0.15, label: 'Passes in Opp. Half'     },
+    { key: 'interceptions', w: 0.15, label: 'Interceptions'           },
+    { key: 'pressures',     w: 0.15, label: 'Pressures Applied'       },
   ],
   WM: [
-    { key: 'dribbles',       w: 0.20, label: 'Dribbles Attempted' },
-    { key: 'dribbleSuccRate',w: 0.15, label: 'Dribble Success%' },
-    { key: 'crosses',        w: 0.20, label: 'Crosses' },
-    { key: 'keyPasses',      w: 0.20, label: 'Key Passes' },
+    { key: 'dribbles',       w: 0.20, label: 'Dribbles Attempted'     },
+    { key: 'dribbleSuccRate',w: 0.15, label: 'Dribble Success%'       },
+    { key: 'crosses',        w: 0.20, label: 'Crosses'                },
+    { key: 'keyPasses',      w: 0.20, label: 'Key Passes'             },
     { key: 'carriesIntoFT',  w: 0.15, label: 'Carries into Final 3rd' },
-    { key: 'progPasses',     w: 0.10, label: 'Progressive Passes' },
+    { key: 'progPasses',     w: 0.10, label: 'Progressive Passes'     },
   ],
   ST: [
-    { key: 'goals',          w: 0.25, label: 'Goals P90' },
-    { key: 'xG',             w: 0.20, label: 'xG P90' },
-    { key: 'shotsOnTarget',  w: 0.20, label: 'Shots on Target P90' },
-    { key: 'conversionRate', w: 0.15, label: 'Conversion Rate' },
-    { key: 'carriesIntoBox', w: 0.10, label: 'Carries into Box' },
-    { key: 'aerialDuels',    w: 0.10, label: 'Aerial Duels Won' },
+    { key: 'goals',          w: 0.25, label: 'Goals P90'              },
+    { key: 'xG',             w: 0.20, label: 'xG P90'                 },
+    { key: 'shotsOnTarget',  w: 0.20, label: 'Shots on Target P90'    },
+    { key: 'conversionRate', w: 0.15, label: 'Conversion Rate'        },
+    { key: 'carriesIntoBox', w: 0.10, label: 'Carries into Box'       },
+    { key: 'aerialDuels',    w: 0.10, label: 'Aerial Duels Won'       },
   ],
 }
 
@@ -193,24 +173,20 @@ function computeComposite(pid, posType, rank, metrics) {
   return { rating, top2 }
 }
 
-// Format a raw metric value for display
 function fmtVal(key, val) {
   if (key === 'passAccuracy' || key === 'ownHalfPassAcc') return `${val.toFixed(0)}%`
-  if (key === 'conversionRate' || key === 'dribbleSuccRate' || key === 'tackleSuccRate' || key === 'shotAccuracy')
+  if (['conversionRate','dribbleSuccRate','tackleSuccRate','shotAccuracy'].includes(key))
     return `${(val * 100).toFixed(0)}%`
   if (key === 'xG' || key === 'xGOT') return val.toFixed(2)
   return val.toFixed(1)
 }
 
-// ─── 4. Spatial: Avg position from all events ─────────────────────────────────
-
+// ─── Spatial helpers ──────────────────────────────────────────────────────────
 function avgLocation(pid, allStats) {
   const evs = (allStats[pid]?.allEvents ?? []).filter(e => e.start_x != null && e.start_y != null)
   if (evs.length < 3) return null
-  return {
-    x: evs.reduce((a, e) => a + e.start_x, 0) / evs.length,
-    y: evs.reduce((a, e) => a + e.start_y, 0) / evs.length,
-  }
+  return { x: evs.reduce((a, e) => a + e.start_x, 0) / evs.length,
+           y: evs.reduce((a, e) => a + e.start_y, 0) / evs.length }
 }
 
 function spatialDist(loc, slot) {
@@ -220,50 +196,41 @@ function spatialDist(loc, slot) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-// ─── 5. Lineup Computation ────────────────────────────────────────────────────
-
+// ─── Core algorithm ───────────────────────────────────────────────────────────
 function computeLineup(lineups, allStats) {
-  // Full outfield pool (for subs — no pass filter)
   const outfield = lineups.filter(l => {
     const pos = (l.player?.position ?? '').trim().toLowerCase()
     return !GK_POSITIONS.has(pos) && !!allStats[l.player_id]
   })
-
-  // Starter pool: ≥ 20 passes/match
   const squad = outfield.filter(l => {
     const s = allStats[l.player_id]
     return ((s.totalPasses ?? 0) / (s.matchesPlayed ?? 1)) >= 20
   })
-
   if (squad.length < 10) return null
 
   const pids = squad.map(p => p.player_id)
+  const allPids = outfield.map(p => p.player_id)
 
-  // Extract metrics
+  // Metrics for ALL outfield players (needed for bench ratings)
   const metrics = {}
-  for (const pid of pids) metrics[pid] = extractMetrics(pid, allStats)
+  for (const pid of allPids) metrics[pid] = extractMetrics(pid, allStats)
 
-  // Build percentile ranker
-  const rank = buildPercentileRanker(pids, metrics)
+  const rank    = buildPercentileRanker(pids, metrics)   // rank relative to starter pool
+  const allRank = buildPercentileRanker(allPids, metrics) // rank relative to all outfield
 
-  // Composite ratings for all position types
+  // Composites for ALL outfield players
   const composites = {}
-  for (const pid of pids) {
+  for (const pid of allPids) {
     composites[pid] = {}
-    for (const type of ['CB', 'FB', 'CM', 'WM', 'ST']) {
+    for (const type of ['CB','FB','CM','WM','ST'])
       composites[pid][type] = computeComposite(pid, type, rank, metrics)
-    }
   }
 
-  // Avg locations
   const locations = {}
   for (const pid of pids) locations[pid] = avgLocation(pid, allStats)
 
-  // Score each (player × slot):
-  // final_score = composite_rating (0–100) * 0.65 + spatial_score (0–100) * 0.35
-  const RATING_W  = 0.65
-  const SPATIAL_W = 0.35
-
+  // Greedy slot assignment from starter pool
+  const RATING_W = 0.65, SPATIAL_W = 0.35
   const triples = []
   for (const slot of SLOTS) {
     for (const p of squad) {
@@ -271,155 +238,50 @@ function computeLineup(lineups, allStats) {
       const dist    = spatialDist(locations[p.player_id], slot)
       const spatPct = Math.max(0, (1 - dist / 0.8)) * 100
       const score   = rating * RATING_W + spatPct * SPATIAL_W
-      triples.push({ score, rating, spatPct, dist, pid: p.player_id, slotId: slot.id, slotType: slot.type, side: slot.side, top2 })
+      triples.push({ score, rating, top2, pid: p.player_id, slotId: slot.id, slotType: slot.type, side: slot.side })
     }
   }
   triples.sort((a, b) => b.score - a.score)
 
-  const usedPlayers = new Set()
-  const usedSlots   = new Set()
-  const lineup      = {}
-
+  const usedPlayers = new Set(), usedSlots = new Set()
+  const lineup = {}
   for (const t of triples) {
     if (usedPlayers.has(t.pid) || usedSlots.has(t.slotId)) continue
     const player = squad.find(p => p.player_id === t.pid)
     lineup[t.slotId] = { ...t, player }
-    usedPlayers.add(t.pid)
-    usedSlots.add(t.slotId)
+    usedPlayers.add(t.pid); usedSlots.add(t.slotId)
     if (Object.keys(lineup).length === SLOTS.length) break
   }
 
-  // Subs: remaining outfield sorted by overall contribution score
-  const subMetrics = {}
-  const subPids    = outfield.map(l => l.player_id)
-  for (const pid of subPids) subMetrics[pid] = extractMetrics(pid, allStats)
-  const subRank = buildPercentileRanker(subPids, subMetrics)
+  // All outfield players (for bench + drag pool)
+  const allPlayers = outfield.map(l => ({
+    ...l,
+    bestRating: Math.max(...Object.values(composites[l.player_id]).map(c => c.rating)),
+  }))
 
-  const overall = (pid) => {
-    const r = (key) => subRank(pid, key)
-    return r('goals')*0.15 + r('xG')*0.10 + r('shotsOnTarget')*0.08 +
-           r('succTackles')*0.12 + r('interceptions')*0.12 +
-           r('progPasses')*0.10 + r('keyPasses')*0.10 +
-           r('dribbles')*0.10 + r('passAccuracy')*0.08 + r('pressures')*0.05
-  }
-
-  const subs = outfield
-    .filter(p => !usedPlayers.has(p.player_id))
-    .map(p => ({ player: p, overall: overall(p.player_id), s: allStats[p.player_id] ?? {} }))
-    .sort((a, b) => b.overall - a.overall)
-    .slice(0, 3)
-
-  return { lineup, subs, metrics, composites }
+  return { lineup, allPlayers, composites, metrics }
 }
 
-// ─── Canvas Pitch ─────────────────────────────────────────────────────────────
-
-const POOR_FIT = 45   // composite rating below this = flagged
-
-const posColors = { CB: '#0077B6', FB: '#00B4D8', CM: '#023E8A', WM: '#48CAE4', ST: '#D90429' }
-
-function PitchCanvas({ lineup }) {
-  const containerRef = useRef(null)
-  const canvasRef    = useRef(null)
+// ─── Pitch background (canvas, no tokens) ────────────────────────────────────
+function PitchBackground({ pitchRef }) {
+  const canvasRef = useRef(null)
 
   useLayoutEffect(() => {
-    const container = containerRef.current
+    const container = pitchRef.current
     const canvas    = canvasRef.current
-    if (!container || !canvas || !lineup) return
+    if (!container || !canvas) return
 
     function draw(w) {
       if (w <= 0) return
-      const h   = w / ASPECT
-      const dpr = window.devicePixelRatio || 1
-      canvas.width  = w * dpr; canvas.height  = h * dpr
-      canvas.style.width  = `${w}px`; canvas.style.height = `${h}px`
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
+      const h = w / ASPECT, dpr = window.devicePixelRatio || 1
+      canvas.width = w * dpr; canvas.height = h * dpr
+      canvas.style.width = `${w}px`; canvas.style.height = `${h}px`
+      const ctx = canvas.getContext('2d'); if (!ctx) return
       ctx.scale(dpr, dpr)
-
-      // Rotate 90° clockwise → horizontal drawPitch renders as portrait
       ctx.save()
-      ctx.translate(w, 0)
-      ctx.rotate(Math.PI / 2)
+      ctx.translate(w, 0); ctx.rotate(Math.PI / 2)
       drawPitch(ctx, h, w)
       ctx.restore()
-
-      // Bigger circles — scale generously with canvas width
-      const r      = Math.max(16, Math.min(26, w / 28))
-      const fsNum  = Math.max(9,  Math.min(15, r * 0.72))   // jersey number inside circle
-      const fsRat  = Math.max(7,  Math.min(11, r * 0.58))   // composite rating below
-      const fsName = Math.max(6,  Math.min(9,  r * 0.44))   // surname below rating
-      const fsPosL = Math.max(6,  Math.min(9,  r * 0.44))   // position label above
-
-      for (const slot of SLOTS) {
-        const entry = lineup[slot.id]
-        if (!entry) continue
-        const { px, py } = mapCoords(slot.x, slot.y, w, h)
-        const isPoor    = entry.rating < POOR_FIT
-        const ratingPct = Math.round(entry.rating)
-
-        // Drop shadow
-        ctx.save()
-        ctx.shadowColor   = 'rgba(0,0,0,0.22)'
-        ctx.shadowBlur    = 6
-        ctx.shadowOffsetY = 2
-
-        // Main circle — #FFD167 fill, black border
-        ctx.fillStyle   = isPoor ? '#fff0f0' : '#FFD167'
-        ctx.strokeStyle = isPoor ? '#D90429' : '#000'
-        ctx.lineWidth   = isPoor ? 3 : 2.5
-        ctx.beginPath()
-        ctx.arc(px, py, r, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowColor = 'transparent'
-        ctx.stroke()
-        ctx.restore()
-
-        // Jersey number — black text centred in circle
-        ctx.save()
-        ctx.fillStyle    = '#000'
-        ctx.font         = `bold ${fsNum}px ${FONT}`
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(String(entry.player?.jersey_no ?? '?'), px, py)
-        ctx.restore()
-
-        // Position label above circle — small black pill
-        const posLabel = slot.label
-        const pillW    = fsPosL * posLabel.length * 0.72 + 8
-        const pillH    = fsPosL + 4
-        const pillY    = py - r - pillH - 3
-        ctx.save()
-        ctx.fillStyle = '#000'
-        ctx.beginPath()
-        ctx.roundRect?.(px - pillW / 2, pillY, pillW, pillH, 3) ??
-          ctx.rect(px - pillW / 2, pillY, pillW, pillH)
-        ctx.fill()
-        ctx.fillStyle    = '#FFD167'
-        ctx.font         = `bold ${fsPosL}px ${FONT}`
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(posLabel, px, pillY + pillH / 2)
-        ctx.restore()
-
-        // Composite rating below circle — black bold text
-        ctx.save()
-        ctx.fillStyle    = isPoor ? '#D90429' : '#000'
-        ctx.font         = `bold ${fsRat}px ${FONT}`
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'top'
-        ctx.fillText(`${ratingPct}`, px, py + r + 3)
-        ctx.restore()
-
-        // Player surname below rating — dark grey
-        ctx.save()
-        ctx.fillStyle    = '#222'
-        ctx.font         = `bold ${fsName}px ${FONT}`
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'top'
-        ctx.fillText(firstName(entry.player?.player?.player_name ?? ''), px, py + r + 3 + fsRat + 1)
-        ctx.restore()
-      }
     }
 
     const initW = container.offsetWidth || container.getBoundingClientRect().width
@@ -427,161 +289,433 @@ function PitchCanvas({ lineup }) {
     const obs = new ResizeObserver(([e]) => draw(e.contentRect.width))
     obs.observe(container)
     return () => obs.disconnect()
-  }, [lineup])
+  }, [pitchRef])
+
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} />
+}
+
+// ─── Player token on pitch ────────────────────────────────────────────────────
+function PitchToken({ slot, entry, onDragStart, onDragEnd, isDragging, isDropTarget, previewRating }) {
+  const isPoor     = (previewRating ?? entry?.rating ?? 0) < POOR_FIT
+  const ratingDisp = previewRating != null ? Math.round(previewRating) : (entry ? Math.round(entry.rating) : '?')
+  const hasPreview = previewRating != null && entry && Math.round(previewRating) !== Math.round(entry.rating)
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <canvas ref={canvasRef} style={{ display: 'block' }} />
+    <div
+      draggable={!!entry}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart?.() }}
+      onDragEnd={onDragEnd}
+      style={{
+        position: 'absolute',
+        left: slotStyle(slot.x, slot.y).left,
+        top:  slotStyle(slot.x, slot.y).top,
+        transform: 'translate(-50%, -50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        cursor: entry ? 'grab' : 'default',
+        opacity: isDragging ? 0.35 : 1,
+        transition: 'opacity 0.15s',
+        zIndex: isDragging ? 0 : 2,
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
+    >
+      {/* Position pill */}
+      <div style={{
+        background: isDropTarget ? '#FFD167' : '#000',
+        color: isDropTarget ? '#000' : '#FFD167',
+        fontSize: 8, fontWeight: 700, letterSpacing: 1,
+        padding: '2px 6px', borderRadius: 3, marginBottom: 3,
+        fontFamily: FONT, textTransform: 'uppercase',
+        border: isDropTarget ? '1.5px solid #000' : 'none',
+      }}>
+        {slot.label}
+      </div>
+
+      {/* Circle */}
+      <div style={{
+        width: 46, height: 46,
+        borderRadius: '50%',
+        background: entry ? (isPoor ? '#fff0f0' : '#FFD167') : 'rgba(255,255,255,0.25)',
+        border: `3px solid ${isDropTarget ? '#00c853' : isPoor ? '#D90429' : '#000'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: isDropTarget ? '0 0 0 3px rgba(0,200,83,0.4)' : '0 2px 8px rgba(0,0,0,0.25)',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        position: 'relative',
+      }}>
+        <span style={{
+          fontFamily: FONT, fontWeight: 700, fontSize: 15,
+          color: entry ? '#000' : 'rgba(0,0,0,0.3)',
+          lineHeight: 1,
+        }}>
+          {entry ? (entry.player?.jersey_no ?? '?') : '+'}
+        </span>
+      </div>
+
+      {/* Rating */}
+      {entry && (
+        <div style={{
+          marginTop: 3,
+          fontFamily: FONT, fontWeight: 700,
+          fontSize: 11,
+          color: isPoor ? '#D90429' : '#000',
+        }}>
+          {hasPreview
+            ? <><span style={{ opacity: 0.45, textDecoration: 'line-through', fontSize: 9, marginRight: 3 }}>{Math.round(entry.rating)}</span><span style={{ color: '#00c853' }}>{ratingDisp}</span></>
+            : ratingDisp}
+        </div>
+      )}
+
+      {/* Name */}
+      {entry && (
+        <div style={{
+          fontFamily: FONT, fontWeight: 700, fontSize: 8,
+          color: '#000', textTransform: 'uppercase', letterSpacing: 0.3,
+          maxWidth: 58, textAlign: 'center', overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {firstName(entry.player?.player?.player_name ?? '')}
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function LineupSuggestion({ lineups, allStats }) {
-  const result = useMemo(() => computeLineup(lineups, allStats), [lineups, allStats])
+  const baseResult = useMemo(() => computeLineup(lineups, allStats), [lineups, allStats])
 
-  if (!result) return (
+  // Editable lineup: slotId → pid (null = use algo result)
+  const [overrides, setOverrides] = useState(null)   // null = algorithm result
+  const [dragging, setDragging]   = useState(null)   // { pid, fromSlot: slotId|'bench' }
+  const [dropTarget, setDropTarget] = useState(null) // slotId being hovered
+
+  const pitchRef = useRef(null)
+
+  if (!baseResult) return (
     <div style={{ padding: 24, fontFamily: FONT, fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>
       Not enough players with ≥ 20 passes/match to suggest a lineup.
     </div>
   )
 
-  const { lineup, subs, metrics, composites } = result
+  const { allPlayers, composites } = baseResult
 
-  // Build justification rows
-  const rows = SLOTS.map(slot => {
-    const entry = lineup[slot.id]
-    if (!entry) return null
-    const name   = entry.player?.player?.player_name ?? 'Unknown'
-    const jersey = entry.player?.jersey_no ?? '?'
-    const rating = Math.round(entry.rating)
-    const isPoor = rating < POOR_FIT
-    const m      = metrics[entry.pid] ?? {}
+  // Build active lineup from overrides or base result
+  const activeLineup = useMemo(() => {
+    if (!overrides) return baseResult.lineup
+    const result = {}
+    for (const slot of SLOTS) {
+      const pid = overrides[slot.id]
+      if (!pid) continue
+      const player = allPlayers.find(p => p.player_id === pid)
+      if (!player) continue
+      const { rating, top2 } = composites[pid]?.[slot.type] ?? { rating: 0, top2: [] }
+      result[slot.id] = { pid, rating, top2, slotType: slot.type, side: slot.side, slotId: slot.id, player }
+    }
+    return result
+  }, [overrides, baseResult, allPlayers, composites])
 
-    // Top 2 metrics that justified selection
-    const top2Lines = entry.top2.map(({ label, pct, rawVal, key }) =>
-      `${label}: ${fmtVal(key, rawVal)} (${Math.round(pct)}th pct)`
-    )
+  // Bench: all outfield players not in the active lineup
+  const benchPlayers = useMemo(() => {
+    const starterPids = new Set(Object.values(activeLineup).map(e => e.pid))
+    return allPlayers
+      .filter(p => !starterPids.has(p.player_id))
+      .sort((a, b) => b.bestRating - a.bestRating)
+  }, [activeLineup, allPlayers])
 
-    return { slot, entry, name, jersey, rating, isPoor, top2Lines }
-  }).filter(Boolean)
+  // Current slot assignments as pid map
+  const currentAssignments = useMemo(() => {
+    const map = {}
+    for (const slot of SLOTS) map[slot.id] = activeLineup[slot.id]?.pid ?? null
+    return map
+  }, [activeLineup])
+
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+
+  const handleSlotDragStart = useCallback((pid, slotId) => {
+    setDragging({ pid, fromSlot: slotId })
+  }, [])
+
+  const handleBenchDragStart = useCallback((pid) => {
+    setDragging({ pid, fromSlot: 'bench' })
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDragging(null)
+    setDropTarget(null)
+  }, [])
+
+  const handleSlotDragOver = useCallback((e, slotId) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropTarget(slotId)
+  }, [])
+
+  const handleSlotDrop = useCallback((e, targetSlotId) => {
+    e.preventDefault()
+    if (!dragging) { setDropTarget(null); return }
+
+    const { pid: dragPid, fromSlot } = dragging
+    const targetOccupant = currentAssignments[targetSlotId]
+
+    setOverrides(prev => {
+      const base = prev ?? Object.fromEntries(SLOTS.map(s => [s.id, currentAssignments[s.id]]))
+      const next = { ...base }
+
+      if (fromSlot === 'bench') {
+        // Bench → slot: bench player takes the slot, displaced player goes to bench
+        next[targetSlotId] = dragPid
+      } else {
+        // Slot → slot: swap
+        next[targetSlotId] = dragPid
+        next[fromSlot]     = targetOccupant  // may be null if target was empty
+      }
+      return next
+    })
+
+    setDragging(null)
+    setDropTarget(null)
+  }, [dragging, currentAssignments])
+
+  const handleBenchDrop = useCallback((e) => {
+    e.preventDefault()
+    if (!dragging || dragging.fromSlot === 'bench') { setDragging(null); setDropTarget(null); return }
+    // Drag from slot to bench: remove from lineup
+    const { fromSlot } = dragging
+    setOverrides(prev => {
+      const base = prev ?? Object.fromEntries(SLOTS.map(s => [s.id, currentAssignments[s.id]]))
+      return { ...base, [fromSlot]: null }
+    })
+    setDragging(null); setDropTarget(null)
+  }, [dragging, currentAssignments])
+
+  // Preview rating: what would the dragged player get at the hovered slot?
+  const previewRatings = useMemo(() => {
+    if (!dragging || !dropTarget) return {}
+    const slot = SLOTS.find(s => s.id === dropTarget)
+    if (!slot) return {}
+    const r = composites[dragging.pid]?.[slot.type]?.rating
+    return r != null ? { [dropTarget]: r } : {}
+  }, [dragging, dropTarget, composites])
 
   // Tactical summary
-  const starters    = SLOTS.map(s => lineup[s.id]).filter(Boolean)
-  const avgCBrating = starters.filter(e => e.slotType === 'CB').reduce((a, e) => a + e.rating, 0) / 2
-  const avgMFrating = starters.filter(e => ['CM','WM'].includes(e.slotType)).reduce((a, e) => a + e.rating, 0) / 4
-  const avgSTrating = starters.filter(e => e.slotType === 'ST').reduce((a, e) => a + e.rating, 0) / 2
-  const overallRating = starters.reduce((a, e) => a + e.rating, 0) / starters.length
-  const poorCount   = rows.filter(r => r.isPoor).length
+  const starters    = SLOTS.map(s => activeLineup[s.id]).filter(Boolean)
+  const avgCBrating = starters.filter(e => e.slotType === 'CB').reduce((a, e) => a + e.rating, 0) / Math.max(starters.filter(e => e.slotType === 'CB').length, 1)
+  const avgMFrating = starters.filter(e => ['CM','WM'].includes(e.slotType)).reduce((a, e) => a + e.rating, 0) / Math.max(starters.filter(e => ['CM','WM'].includes(e.slotType)).length, 1)
+  const avgSTrating = starters.filter(e => e.slotType === 'ST').reduce((a, e) => a + e.rating, 0) / Math.max(starters.filter(e => e.slotType === 'ST').length, 1)
+  const overallRating = starters.length ? starters.reduce((a, e) => a + e.rating, 0) / starters.length : 0
+  const poorCount   = starters.filter(e => e.rating < POOR_FIT).length
+  const isModified  = !!overrides
 
   return (
     <div style={{ fontFamily: FONT }}>
       {/* Header */}
       <div style={{ background: '#000', color: '#FFD166', padding: '8px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Suggested Starting XI — 4-4-2</span>
-        <span style={{ fontSize: 9, color: '#aaa', letterSpacing: 1 }}>
-          All Matches · P90 &nbsp;|&nbsp; Squad Rating: <span style={{ color: '#FFD167', fontSize: 11 }}>{overallRating.toFixed(0)}</span>/100
-        </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isModified && (
+            <button
+              onClick={() => setOverrides(null)}
+              style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', padding: '3px 8px', background: '#FFD167', color: '#000', border: 'none', cursor: 'pointer' }}
+            >
+              ↺ Reset
+            </button>
+          )}
+          <span style={{ fontSize: 9, color: '#aaa', letterSpacing: 1 }}>
+            All Matches · P90 &nbsp;|&nbsp; Squad Rating: <span style={{ color: '#FFD167', fontSize: 11 }}>{overallRating.toFixed(0)}</span>/100
+          </span>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 0 }}>
-        {/* Pitch */}
-        <div style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}>
-          <PitchCanvas lineup={lineup} />
-          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <span><span style={{ color: '#FFD167', fontWeight: 700, WebkitTextStroke: '0.5px #000' }}>●</span> Selected · number = rating (0–100)</span>
-            <span><span style={{ color: '#D90429', fontWeight: 700 }}>●</span> Poor fit (&lt;{POOR_FIT})</span>
+
+        {/* ── Interactive Pitch ───────────────────────────────────────── */}
+        <div
+          ref={pitchRef}
+          style={{ flex: '0 0 50%', borderRight: '2px solid #000', position: 'relative' }}
+        >
+          <PitchBackground pitchRef={pitchRef} />
+
+          {/* Token overlay */}
+          <div
+            style={{ position: 'absolute', inset: 0 }}
+            onDragOver={e => e.preventDefault()}
+          >
+            {SLOTS.map(slot => {
+              const entry    = activeLineup[slot.id]
+              const isSrc    = dragging?.fromSlot === slot.id
+              const isTarget = dropTarget === slot.id
+              const preview  = previewRatings[slot.id]
+
+              return (
+                <div
+                  key={slot.id}
+                  onDragOver={e => handleSlotDragOver(e, slot.id)}
+                  onDrop={e => handleSlotDrop(e, slot.id)}
+                  style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+                >
+                  <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'all' }}>
+                    <PitchToken
+                      slot={slot}
+                      entry={entry}
+                      isDragging={isSrc}
+                      isDropTarget={isTarget}
+                      previewRating={isTarget ? preview : undefined}
+                      onDragStart={() => entry && handleSlotDragStart(entry.pid, slot.id)}
+                      onDragEnd={handleDragEnd}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Legend */}
+          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <span>⇄ Drag players to swap positions</span>
+            <span style={{ color: '#D90429' }}>● Poor fit (&lt;{POOR_FIT})</span>
           </div>
         </div>
 
-        {/* Right panel */}
+        {/* ── Right panel ─────────────────────────────────────────────── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-          {/* Player justification list */}
+          {/* Starting XI list */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {rows.map(({ slot, entry, name, jersey, rating, isPoor, top2Lines }) => (
-              <div key={slot.id} style={{ borderBottom: '1px solid #eee', padding: '6px 10px', display: 'flex', gap: 7, alignItems: 'flex-start', background: isPoor ? '#fff8f8' : '#fff' }}>
-                {/* Position badge */}
-                <div style={{ minWidth: 36, background: posColors[slot.type] ?? '#333', color: '#fff', fontSize: 7, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', padding: '3px 2px', textAlign: 'center', flexShrink: 0, marginTop: 1 }}>
-                  {slot.label}
-                </div>
-
-                {/* Player info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 9, opacity: 0.4 }}>#{jersey}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{name}</span>
-                    {isPoor && <span style={{ fontSize: 7, background: '#D90429', color: '#fff', padding: '1px 4px', fontWeight: 700 }}>⚠ POOR FIT</span>}
+            <div style={{ background: '#f7f7f7', borderBottom: '2px solid #000', padding: '5px 10px', fontSize: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#555' }}>
+              Starting XI — drag to rearrange
+            </div>
+            {SLOTS.map(slot => {
+              const entry = activeLineup[slot.id]
+              if (!entry) return null
+              const isPoor = entry.rating < POOR_FIT
+              const name   = entry.player?.player?.player_name ?? 'Unknown'
+              const jersey = entry.player?.jersey_no ?? '?'
+              return (
+                <div
+                  key={slot.id}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleSlotDragStart(entry.pid, slot.id) }}
+                  onDragEnd={handleDragEnd}
+                  style={{ borderBottom: '1px solid #eee', padding: '6px 10px', display: 'flex', gap: 7, alignItems: 'flex-start', background: isPoor ? '#fff8f8' : '#fff', cursor: 'grab' }}
+                >
+                  <div style={{ minWidth: 36, background: posColors[slot.type] ?? '#333', color: '#fff', fontSize: 7, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', padding: '3px 2px', textAlign: 'center', flexShrink: 0, marginTop: 1 }}>
+                    {slot.label}
                   </div>
-                  {/* Top 2 metrics */}
-                  {top2Lines.map((line, i) => (
-                    <div key={i} style={{ fontSize: 8, color: '#555', marginTop: 1, letterSpacing: 0.2 }}>
-                      <span style={{ color: i === 0 ? '#0077B6' : '#00B4D8', fontWeight: 700, marginRight: 3 }}>#{i + 1}</span>
-                      {line}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, opacity: 0.4 }}>#{jersey}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{name}</span>
+                      {isPoor && <span style={{ fontSize: 7, background: '#D90429', color: '#fff', padding: '1px 4px', fontWeight: 700 }}>⚠ POOR FIT</span>}
                     </div>
-                  ))}
-                </div>
-
-                {/* Composite rating */}
-                <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: isPoor ? '#D90429' : rating >= 65 ? '#0077B6' : '#555', lineHeight: 1 }}>
-                    {rating}
+                    {(entry.top2 ?? []).map((m, i) => (
+                      <div key={i} style={{ fontSize: 8, color: '#555', marginTop: 1 }}>
+                        <span style={{ color: i === 0 ? '#0077B6' : '#00B4D8', fontWeight: 700, marginRight: 3 }}>#{i + 1}</span>
+                        {m.label}: {fmtVal(m.key, m.rawVal)} ({Math.round(m.pct)}th pct)
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: 7, color: '#999', letterSpacing: 0.5 }}>/100</div>
+                  <div style={{ flexShrink: 0, textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: isPoor ? '#D90429' : Math.round(entry.rating) >= 65 ? '#0077B6' : '#555', lineHeight: 1 }}>{Math.round(entry.rating)}</div>
+                    <div style={{ fontSize: 7, color: '#999' }}>/100</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
-          {/* Rating breakdown bar */}
+          {/* Rating bars */}
           <div style={{ borderTop: '1px solid #eee', padding: '8px 10px', background: '#fafafa', display: 'flex', gap: 8 }}>
-            {[
-              { label: 'Defense', val: avgCBrating, color: '#0077B6' },
-              { label: 'Midfield', val: avgMFrating, color: '#023E8A' },
-              { label: 'Attack',  val: avgSTrating, color: '#D90429' },
-            ].map(({ label, val, color }) => (
-              <div key={label} style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 7, color: '#999', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-                <div style={{ height: 4, background: '#eee', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ width: `${val}%`, height: '100%', background: color, borderRadius: 2 }} />
+            {[{ label:'Defense', val:avgCBrating, color:'#0077B6' }, { label:'Midfield', val:avgMFrating, color:'#023E8A' }, { label:'Attack', val:avgSTrating, color:'#D90429' }]
+              .map(({ label, val, color }) => (
+                <div key={label} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: 7, color: '#999', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+                  <div style={{ height: 4, background: '#eee', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${val}%`, height: '100%', background: color, borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color, marginTop: 2 }}>{val.toFixed(0)}</div>
                 </div>
-                <div style={{ fontSize: 10, fontWeight: 700, color, marginTop: 2 }}>{val.toFixed(0)}</div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {/* Tactical note */}
-          <div style={{ borderTop: '2px solid #000', padding: '9px 12px', background: '#111', color: '#ccc', fontSize: 8.5, lineHeight: 1.7 }}>
+          <div style={{ borderTop: '2px solid #000', padding: '8px 12px', background: '#111', color: '#ccc', fontSize: 8.5, lineHeight: 1.7 }}>
             <div style={{ color: '#FFD166', fontWeight: 700, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Tactical Analysis</div>
-            Defense rated <strong style={{ color: '#6ec6ff' }}>{avgCBrating.toFixed(0)}/100</strong> · Midfield <strong style={{ color: '#6ec6ff' }}>{avgMFrating.toFixed(0)}/100</strong> · Attack <strong style={{ color: '#ff8888' }}>{avgSTrating.toFixed(0)}/100</strong>.
+            Defense <strong style={{ color: '#6ec6ff' }}>{avgCBrating.toFixed(0)}/100</strong> · Midfield <strong style={{ color: '#6ec6ff' }}>{avgMFrating.toFixed(0)}/100</strong> · Attack <strong style={{ color: '#ff8888' }}>{avgSTrating.toFixed(0)}/100</strong>.
             {poorCount > 0
-              ? ` ⚠ ${poorCount} player${poorCount > 1 ? 's' : ''} rated below ${POOR_FIT} — squad depth may be limited in those positions.`
-              : ' ✓ All selections meet the positional fit threshold.'
+              ? ` ⚠ ${poorCount} player${poorCount > 1 ? 's' : ''} rated below ${POOR_FIT}.`
+              : ' ✓ All selections meet positional fit threshold.'
             }
+            {isModified && <span style={{ color: '#FFD167' }}> (Custom lineup — reset to restore algorithm.)</span>}
           </div>
 
-          {/* Substitutes */}
-          {subs.length > 0 && (
-            <div style={{ borderTop: '2px solid #000' }}>
-              <div style={{ background: '#222', color: '#FFD166', padding: '4px 12px', fontSize: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-                Suggested Substitutes
-              </div>
-              {subs.map(({ player, s }) => {
-                const subName   = player.player?.player_name ?? 'Unknown'
-                const subJersey = player.jersey_no ?? '?'
+          {/* Bench — draggable onto pitch */}
+          <div
+            style={{ borderTop: '2px solid #000' }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleBenchDrop}
+          >
+            <div style={{ background: '#222', color: '#FFD166', padding: '4px 12px', fontSize: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Bench — drag onto pitch to try</span>
+              <span style={{ color: '#666', fontWeight: 400 }}>Rating shown = composite for each position</span>
+            </div>
+            <div style={{ overflowY: 'auto', maxHeight: 240 }}>
+              {benchPlayers.map(player => {
+                const pid  = player.player_id
+                const name = player.player?.player_name ?? 'Unknown'
+                const s    = allStats[pid] ?? {}
+                const isDraggingThis = dragging?.pid === pid
+
+                // Best rating across all positions
+                const bestEntry = Object.entries(composites[pid] ?? {})
+                  .sort((a, b) => b[1].rating - a[1].rating)[0]
+                const bestType   = bestEntry?.[0] ?? '—'
+                const bestRating = Math.round(bestEntry?.[1]?.rating ?? 0)
+
                 return (
-                  <div key={player.player_id} style={{ borderBottom: '1px solid #eee', padding: '5px 12px', display: 'flex', gap: 8, alignItems: 'center', background: '#fff' }}>
-                    <span style={{ fontSize: 9, opacity: 0.4, minWidth: 22 }}>#{subJersey}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{subName}</span>
-                    <span style={{ fontSize: 8, color: '#666' }}>
-                      {(s.goals ?? 0)}G · {(s.totalShots ?? 0)} shots · {(s.succTackles ?? 0)} tkl won · {(s.passAccuracy ?? 0)}% pass
-                    </span>
+                  <div
+                    key={pid}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleBenchDragStart(pid) }}
+                    onDragEnd={handleDragEnd}
+                    style={{
+                      borderBottom: '1px solid #eee',
+                      padding: '6px 12px',
+                      display: 'flex', gap: 8, alignItems: 'center',
+                      background: isDraggingThis ? '#fffbe6' : '#fff',
+                      cursor: 'grab',
+                      opacity: isDraggingThis ? 0.5 : 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 9, opacity: 0.4, minWidth: 22 }}>#{player.jersey_no ?? '—'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{name}</span>
+
+                    {/* Ratings per position type */}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {['CB','FB','CM','WM','ST'].map(type => {
+                        const r   = Math.round(composites[pid]?.[type]?.rating ?? 0)
+                        const isBest = type === bestType
+                        return (
+                          <div key={type} style={{ textAlign: 'center', minWidth: 28 }}>
+                            <div style={{ fontSize: 6, color: '#aaa', letterSpacing: 0.5, textTransform: 'uppercase' }}>{type}</div>
+                            <div style={{
+                              fontSize: 9, fontWeight: 700,
+                              color: r >= 65 ? '#0077B6' : r >= POOR_FIT ? '#555' : '#D90429',
+                              background: isBest ? '#fffbe6' : 'transparent',
+                              borderRadius: 2, padding: '0 2px',
+                            }}>
+                              {r}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )
               })}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
