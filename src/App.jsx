@@ -8,6 +8,7 @@ import PassNetwork from './components/PassNetwork.jsx'
 import SquadStatsTable from './components/SquadStatsTable.jsx'
 import LineupSuggestion from './components/LineupSuggestion.jsx'
 import AveragePitchLocations from './components/AveragePitchLocations.jsx'
+import ProgressionTab from './components/ProgressionTab.jsx'
 import Login from './components/Login.jsx'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
@@ -317,7 +318,7 @@ function AppInner({ authed, onLogin, onLogout }) {
 
   // top-level view tab: 'squad' | 'team' | 'player' | 'compare'
   // restricted tabs require login
-  const RESTRICTED = ['squad', 'team', 'compare']
+  const RESTRICTED = ['squad', 'team', 'compare', 'progress']
   const [viewTab, setViewTab] = useState('player')
 
   const [mode, setMode] = useState('single') // 'single' | 'compare'
@@ -407,7 +408,8 @@ function AppInner({ authed, onLogin, onLogout }) {
           { key: 'player',  label: 'Player'  },
           { key: 'squad',   label: 'Squad'   },
           { key: 'team',    label: 'Team'    },
-          { key: 'compare', label: 'Compare' },
+          { key: 'compare',  label: 'Compare'     },
+          { key: 'progress', label: 'Progression' },
         ].map(({ key, label }) => {
           const locked = RESTRICTED.includes(key) && !authed
           return (
@@ -736,6 +738,22 @@ function AppInner({ authed, onLogin, onLogout }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* PROGRESSION view */}
+          {viewTab === 'progress' && !loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ background: '#000', color: '#FFD166', padding: '8px 20px', fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: FONT, flexShrink: 0 }}>
+                Player Progression — {matches.length} Matches
+              </div>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <ProgressionTab
+                  matches={matches}
+                  allLineups={allLineups}
+                  statsByMatch={statsByMatch}
+                />
+              </div>
             </div>
           )}
 
