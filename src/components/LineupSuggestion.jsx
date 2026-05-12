@@ -533,46 +533,50 @@ export default function LineupSuggestion({ lineups, allStats }) {
         {/* ── Interactive Pitch ───────────────────────────────────────── */}
         <div
           ref={pitchRef}
-          style={{ flex: '0 0 50%', borderRight: '2px solid #000', position: 'relative' }}
+          style={{ flex: '0 0 50%', borderRight: '2px solid #000', display: 'flex', flexDirection: 'column' }}
         >
-          <PitchBackground pitchRef={pitchRef} />
+          {/* Canvas + overlay share the same positioned wrapper so token % is
+              calculated only against the canvas height, not canvas + legend */}
+          <div style={{ position: 'relative', flex: 1 }}>
+            <PitchBackground pitchRef={pitchRef} />
 
-          {/* Token overlay */}
-          <div
-            style={{ position: 'absolute', inset: 0 }}
-            onDragOver={e => e.preventDefault()}
-          >
-            {SLOTS.map(slot => {
-              const entry    = activeLineup[slot.id]
-              const isSrc    = dragging?.fromSlot === slot.id
-              const isTarget = dropTarget === slot.id
-              const preview  = previewRatings[slot.id]
+            {/* Token overlay — inset: 0 now covers ONLY the canvas area */}
+            <div
+              style={{ position: 'absolute', inset: 0 }}
+              onDragOver={e => e.preventDefault()}
+            >
+              {SLOTS.map(slot => {
+                const entry    = activeLineup[slot.id]
+                const isSrc    = dragging?.fromSlot === slot.id
+                const isTarget = dropTarget === slot.id
+                const preview  = previewRatings[slot.id]
 
-              return (
-                <div
-                  key={slot.id}
-                  onDragOver={e => handleSlotDragOver(e, slot.id)}
-                  onDrop={e => handleSlotDrop(e, slot.id)}
-                  style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-                >
-                  <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'all' }}>
-                    <PitchToken
-                      slot={slot}
-                      entry={entry}
-                      isDragging={isSrc}
-                      isDropTarget={isTarget}
-                      previewRating={isTarget ? preview : undefined}
-                      onDragStart={() => entry && handleSlotDragStart(entry.pid, slot.id)}
-                      onDragEnd={handleDragEnd}
-                    />
+                return (
+                  <div
+                    key={slot.id}
+                    onDragOver={e => handleSlotDragOver(e, slot.id)}
+                    onDrop={e => handleSlotDrop(e, slot.id)}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+                  >
+                    <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'all' }}>
+                      <PitchToken
+                        slot={slot}
+                        entry={entry}
+                        isDragging={isSrc}
+                        isDropTarget={isTarget}
+                        previewRating={isTarget ? preview : undefined}
+                        onDragStart={() => entry && handleSlotDragStart(entry.pid, slot.id)}
+                        onDragEnd={handleDragEnd}
+                      />
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
-          {/* Legend */}
-          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {/* Legend — outside the positioned wrapper so it doesn't affect token % */}
+          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
             <span>⇄ Drag players to swap positions</span>
             <span style={{ color: '#D90429' }}>● Poor fit (&lt;{POOR_FIT})</span>
           </div>
