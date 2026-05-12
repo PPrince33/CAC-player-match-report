@@ -533,14 +533,16 @@ export default function LineupSuggestion({ lineups, allStats }) {
         {/* ── Interactive Pitch ───────────────────────────────────────── */}
         <div
           ref={pitchRef}
-          style={{ flex: '0 0 50%', borderRight: '2px solid #000', display: 'flex', flexDirection: 'column' }}
+          style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}
         >
-          {/* Canvas + overlay share the same positioned wrapper so token % is
-              calculated only against the canvas height, not canvas + legend */}
-          <div style={{ position: 'relative', flex: 1 }}>
+          {/* Inner block wrapper: canvas + overlay only.
+              Must NOT be a flex child with flex:1 — that collapses to 0 height
+              when the parent has no explicit height. Plain block lets the canvas
+              set the height naturally, and inset:0 on the overlay matches exactly. */}
+          <div style={{ position: 'relative' }}>
             <PitchBackground pitchRef={pitchRef} />
 
-            {/* Token overlay — inset: 0 now covers ONLY the canvas area */}
+            {/* Token overlay — covers only the canvas, not the legend below */}
             <div
               style={{ position: 'absolute', inset: 0 }}
               onDragOver={e => e.preventDefault()}
@@ -575,8 +577,8 @@ export default function LineupSuggestion({ lineups, allStats }) {
             </div>
           </div>
 
-          {/* Legend — outside the positioned wrapper so it doesn't affect token % */}
-          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
+          {/* Legend — sits below the canvas, outside the positioned wrapper */}
+          <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span>⇄ Drag players to swap positions</span>
             <span style={{ color: '#D90429' }}>● Poor fit (&lt;{POOR_FIT})</span>
           </div>
@@ -587,8 +589,9 @@ export default function LineupSuggestion({ lineups, allStats }) {
 
           {/* Starting XI list */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ background: '#f7f7f7', borderBottom: '2px solid #000', padding: '5px 10px', fontSize: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#555' }}>
-              Starting XI — drag to rearrange
+            <div style={{ background: '#f7f7f7', borderBottom: '2px solid #000', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#555' }}>Starting XI — drag to rearrange</span>
+              <span style={{ fontSize: 7, color: '#aaa', letterSpacing: 1, textTransform: 'uppercase' }}>Rating shown = composite for each position</span>
             </div>
             {SLOTS.map(slot => {
               const entry = activeLineup[slot.id]
@@ -613,15 +616,32 @@ export default function LineupSuggestion({ lineups, allStats }) {
                       <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{name}</span>
                       {isPoor && <span style={{ fontSize: 7, background: '#D90429', color: '#fff', padding: '1px 4px', fontWeight: 700 }}>⚠ POOR FIT</span>}
                     </div>
+                    {/* Per-position composite ratings */}
+                    <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
+                      {['CB','FB','CM','WM','ST'].map(type => {
+                        const r = Math.round(composites[entry.pid]?.[type]?.rating ?? 0)
+                        const isAssigned = slot.type === type
+                        return (
+                          <div key={type} style={{ textAlign: 'center', minWidth: 26 }}>
+                            <div style={{ fontSize: 6.5, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#fff', background: isAssigned ? posColors[type] : '#ccc', padding: '1px 2px', borderRadius: 2 }}>
+                              {type}
+                            </div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: isAssigned ? (posColors[type] ?? '#333') : '#999' }}>
+                              {r}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                     {(entry.top2 ?? []).map((m, i) => (
-                      <div key={i} style={{ fontSize: 8, color: '#555', marginTop: 1 }}>
+                      <div key={i} style={{ fontSize: 7.5, color: '#555', marginTop: 2 }}>
                         <span style={{ color: i === 0 ? '#0077B6' : '#00B4D8', fontWeight: 700, marginRight: 3 }}>#{i + 1}</span>
                         {m.label}: {fmtVal(m.key, m.rawVal)} ({Math.round(m.pct)}th pct)
                       </div>
                     ))}
                   </div>
-                  <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: isPoor ? '#D90429' : Math.round(entry.rating) >= 65 ? '#0077B6' : '#555', lineHeight: 1 }}>{Math.round(entry.rating)}</div>
+                  <div style={{ flexShrink: 0, textAlign: 'center', paddingLeft: 6 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: isPoor ? '#D90429' : Math.round(entry.rating) >= 65 ? '#0077B6' : '#555', lineHeight: 1 }}>{Math.round(entry.rating)}</div>
                     <div style={{ fontSize: 7, color: '#999' }}>/100</div>
                   </div>
                 </div>
