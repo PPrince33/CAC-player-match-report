@@ -344,71 +344,80 @@ function PitchCanvas({ lineup }) {
       drawPitch(ctx, h, w)
       ctx.restore()
 
-      const r      = Math.max(9, Math.min(17, w / 46))
-      const fsName = Math.max(6, Math.min(9, w / 68))
-      const fsPosL = Math.max(5, Math.min(8, w / 82))
+      // Bigger circles — scale generously with canvas width
+      const r      = Math.max(16, Math.min(26, w / 28))
+      const fsNum  = Math.max(9,  Math.min(15, r * 0.72))   // jersey number inside circle
+      const fsRat  = Math.max(7,  Math.min(11, r * 0.58))   // composite rating below
+      const fsName = Math.max(6,  Math.min(9,  r * 0.44))   // surname below rating
+      const fsPosL = Math.max(6,  Math.min(9,  r * 0.44))   // position label above
 
       for (const slot of SLOTS) {
         const entry = lineup[slot.id]
         if (!entry) continue
         const { px, py } = mapCoords(slot.x, slot.y, w, h)
-        const isPoor     = entry.rating < POOR_FIT
-        const fillColor  = posColors[slot.type] ?? '#333'
-        const ratingPct  = Math.round(entry.rating)
+        const isPoor    = entry.rating < POOR_FIT
+        const ratingPct = Math.round(entry.rating)
 
-        // Outer ring — rating arc
+        // Drop shadow
         ctx.save()
+        ctx.shadowColor   = 'rgba(0,0,0,0.22)'
+        ctx.shadowBlur    = 6
+        ctx.shadowOffsetY = 2
+
+        // Main circle — #FFD167 fill, black border
+        ctx.fillStyle   = isPoor ? '#fff0f0' : '#FFD167'
+        ctx.strokeStyle = isPoor ? '#D90429' : '#000'
+        ctx.lineWidth   = isPoor ? 3 : 2.5
         ctx.beginPath()
-        ctx.arc(px, py, r + 3, -Math.PI / 2, -Math.PI / 2 + (ratingPct / 100) * Math.PI * 2)
-        ctx.strokeStyle = isPoor ? '#FFD166' : '#00FF88'
-        ctx.lineWidth   = 2
+        ctx.arc(px, py, r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowColor = 'transparent'
         ctx.stroke()
         ctx.restore()
 
-        // Main circle
+        // Jersey number — black text centred in circle
         ctx.save()
-        ctx.fillStyle   = fillColor
-        ctx.strokeStyle = isPoor ? '#D90429' : '#fff'
-        ctx.lineWidth   = isPoor ? 2.5 : 1.5
-        ctx.beginPath()
-        ctx.arc(px, py, r, 0, Math.PI * 2)
-        ctx.fill(); ctx.stroke()
-        ctx.restore()
-
-        // Jersey number
-        ctx.save()
-        ctx.fillStyle    = '#fff'
-        ctx.font         = `bold ${Math.max(6, r * 0.75)}px ${FONT}`
+        ctx.fillStyle    = '#000'
+        ctx.font         = `bold ${fsNum}px ${FONT}`
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(String(entry.player?.jersey_no ?? '?'), px, py)
         ctx.restore()
 
-        // Position label (above)
+        // Position label above circle — small black pill
+        const posLabel = slot.label
+        const pillW    = fsPosL * posLabel.length * 0.72 + 8
+        const pillH    = fsPosL + 4
+        const pillY    = py - r - pillH - 3
         ctx.save()
-        ctx.fillStyle    = '#FFD166'
+        ctx.fillStyle = '#000'
+        ctx.beginPath()
+        ctx.roundRect?.(px - pillW / 2, pillY, pillW, pillH, 3) ??
+          ctx.rect(px - pillW / 2, pillY, pillW, pillH)
+        ctx.fill()
+        ctx.fillStyle    = '#FFD167'
         ctx.font         = `bold ${fsPosL}px ${FONT}`
         ctx.textAlign    = 'center'
-        ctx.textBaseline = 'bottom'
-        ctx.fillText(slot.label, px, py - r - 2)
+        ctx.textBaseline = 'middle'
+        ctx.fillText(posLabel, px, pillY + pillH / 2)
         ctx.restore()
 
-        // Rating badge (below circle)
+        // Composite rating below circle — black bold text
         ctx.save()
-        ctx.fillStyle    = isPoor ? '#D90429' : '#00FF88'
-        ctx.font         = `bold ${Math.max(5, r * 0.65)}px ${FONT}`
+        ctx.fillStyle    = isPoor ? '#D90429' : '#000'
+        ctx.font         = `bold ${fsRat}px ${FONT}`
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillText(`${ratingPct}`, px, py + r + 2)
+        ctx.fillText(`${ratingPct}`, px, py + r + 3)
         ctx.restore()
 
-        // Player first name (below rating)
+        // Player surname below rating — dark grey
         ctx.save()
-        ctx.fillStyle    = '#111'
+        ctx.fillStyle    = '#222'
         ctx.font         = `bold ${fsName}px ${FONT}`
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillText(firstName(entry.player?.player?.player_name ?? ''), px, py + r + 2 + Math.max(5, r * 0.65) + 1)
+        ctx.fillText(firstName(entry.player?.player?.player_name ?? ''), px, py + r + 3 + fsRat + 1)
         ctx.restore()
       }
     }
@@ -472,7 +481,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
       <div style={{ background: '#000', color: '#FFD166', padding: '8px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Suggested Starting XI — 4-4-2</span>
         <span style={{ fontSize: 9, color: '#aaa', letterSpacing: 1 }}>
-          Squad Rating: <span style={{ color: '#00FF88', fontSize: 11 }}>{overallRating.toFixed(0)}</span>/100
+          All Matches · P90 &nbsp;|&nbsp; Squad Rating: <span style={{ color: '#FFD167', fontSize: 11 }}>{overallRating.toFixed(0)}</span>/100
         </span>
       </div>
 
@@ -481,8 +490,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
         <div style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}>
           <PitchCanvas lineup={lineup} />
           <div style={{ padding: '5px 12px', background: '#f0f0f0', borderTop: '1px solid #ddd', fontSize: 8, color: '#555', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <span><span style={{ color: '#00FF88', fontWeight: 700 }}>━</span> Rating arc</span>
-            <span><span style={{ color: '#00FF88', fontWeight: 700 }}>●</span> Good fit</span>
+            <span><span style={{ color: '#FFD167', fontWeight: 700, WebkitTextStroke: '0.5px #000' }}>●</span> Selected · number = rating (0–100)</span>
             <span><span style={{ color: '#D90429', fontWeight: 700 }}>●</span> Poor fit (&lt;{POOR_FIT})</span>
           </div>
         </div>
