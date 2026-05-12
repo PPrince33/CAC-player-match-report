@@ -55,11 +55,10 @@ function getStats(pid, allStats) {
 }
 
 export default function SquadStatsTable({ lineups, allStats, statsByMatch, matches, selectedMatchId }) {
-  const [localMatch, setLocalMatch] = useState(selectedMatchId ?? null)
   const [sortKey, setSortKey] = useState('jersey_no')
   const [sortAsc, setSortAsc] = useState(true)
 
-  const activeMatchId = localMatch
+  const activeMatchId = selectedMatchId ?? null
 
   const activeStats = useMemo(() => {
     if (activeMatchId) return statsByMatch[activeMatchId] ?? {}
@@ -159,44 +158,6 @@ export default function SquadStatsTable({ lineups, allStats, statsByMatch, match
 
   return (
     <div style={{ fontFamily: FONT }}>
-      {/* Match selector */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '10px 16px', borderBottom: '2px solid #000', background: '#f7f7f7' }}>
-        <button
-          onClick={() => setLocalMatch(null)}
-          style={{
-            fontFamily: FONT, fontWeight: 700, fontSize: 9, letterSpacing: 1,
-            textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer',
-            border: '2px solid',
-            borderColor: !activeMatchId ? '#000' : '#aaa',
-            background: !activeMatchId ? '#000' : 'transparent',
-            color: !activeMatchId ? '#FFD166' : '#555',
-          }}
-        >
-          All Matches
-        </button>
-        {matches.map(m => {
-          const active = activeMatchId === m.match_id
-          const opp = m.away_team?.team_name ?? m.home_team?.team_name ?? 'Unknown'
-          const date = m.match_date ? String(m.match_date).slice(0, 10) : ''
-          return (
-            <button
-              key={m.match_id}
-              onClick={() => setLocalMatch(m.match_id)}
-              style={{
-                fontFamily: FONT, fontWeight: 700, fontSize: 9, letterSpacing: 1,
-                textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer',
-                border: '2px solid',
-                borderColor: active ? '#000' : '#aaa',
-                background: active ? '#000' : 'transparent',
-                color: active ? '#FFD166' : '#555',
-              }}
-            >
-              vs {opp}{date ? ' · ' + date : ''}
-            </button>
-          )
-        })}
-      </div>
-
       {/* Table */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{
