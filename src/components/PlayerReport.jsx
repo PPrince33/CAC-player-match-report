@@ -7,8 +7,8 @@ import HighlightTab from './HighlightTab.jsx'
 import { buildRadarData } from '../utils/stats.js'
 import { useT } from '../utils/translations.js'
 
-const TAB_KEYS = ['tabOverview', 'tabPassing', 'tabDefensive', 'tabHeatmaps', 'tabHighlights']
-const TAB_IDS  = ['OVERVIEW', 'PASSING & VISION', 'DEFENSIVE', 'HEATMAPS', 'HIGHLIGHTS']
+const TAB_KEYS = ['tabReport', 'tabHighlights']
+const TAB_IDS  = ['REPORT', 'HIGHLIGHTS']
 
 const B  = '2px solid #000'
 const BT = '3px solid #000'
@@ -105,7 +105,7 @@ const PlayerReport = forwardRef(function PlayerReport(
   ref
 ) {
   const t = useT(lang)
-  const [tab, setTab] = useState('OVERVIEW')
+  const [tab, setTab] = useState('REPORT')
 
   if (!player || !stats) return null
 
@@ -241,116 +241,127 @@ const PlayerReport = forwardRef(function PlayerReport(
       {/* ── Tab Content ───────────────────────────────────────── */}
       <div style={{ border: BT, borderTop: 'none' }}>
 
-        {/* OVERVIEW */}
-        {tab === 'OVERVIEW' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-            <div style={{ borderRight: B }}>
-              <Module title={t('modRadar')}>
-                <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
-              </Module>
+        {/* ══ REPORT — all sections in one scrollable view ══ */}
+        {tab === 'REPORT' && (
+          <div>
+
+            {/* ── OVERVIEW ──────────────────────────────────────── */}
+            <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: 'var(--font)', borderBottom: B }}>
+              {t('tabOverview')}
             </div>
-            <div>
-              <Module title={t('modShooting')}>
-                <StatRow label={t('totalShots')}     value={stats.totalShots ?? 0} />
-                <StatRow label={t('shotsOnTarget')}  value={stats.shotsOnTarget ?? 0} accent />
-                <StatRow label={t('goals')}          value={stats.goals ?? 0} accent />
-                <StatRow label={t('xg')}             value={stats.totalXG ?? 0}   sub={t('xgSub')} accent />
-                <StatRow label={t('xgot')}           value={stats.totalXGOT ?? 0} sub={t('xgotSub')} />
-                {(stats.totalShots ?? 0) > 0 && (
-                  <StatRow label={t('conversionRate')} value={`${Math.round(((stats.goals ?? 0) / stats.totalShots) * 100)}%`} />
-                )}
-              </Module>
-              <Module title={t('modDribbling')}>
-                <PercentBar label={t('dribbles')}       made={stats.succDribbles ?? 0} total={stats.dribbles ?? 0} color={accentColor} />
-                <StatRow label={t('carriesFinal3rd')}   value={stats.carriesIntoFT ?? 0} accent />
-                <StatRow label={t('carriesBox')}        value={stats.carriesIntoBox ?? 0} accent />
-                <StatRow label={t('ballControls')}      value={stats.ballControl ?? 0} />
-              </Module>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderBottom: BT }}>
+              <div style={{ borderRight: B }}>
+                <Module title={t('modRadar')}>
+                  <RadarChart data={radarData} teamColor={accentColor} playerName={playerName} />
+                </Module>
+              </div>
+              <div>
+                <Module title={t('modShooting')}>
+                  <StatRow label={t('totalShots')}     value={stats.totalShots ?? 0} />
+                  <StatRow label={t('shotsOnTarget')}  value={stats.shotsOnTarget ?? 0} accent />
+                  <StatRow label={t('goals')}          value={stats.goals ?? 0} accent />
+                  <StatRow label={t('xg')}             value={stats.totalXG ?? 0}   sub={t('xgSub')} accent />
+                  <StatRow label={t('xgot')}           value={stats.totalXGOT ?? 0} sub={t('xgotSub')} />
+                  {(stats.totalShots ?? 0) > 0 && (
+                    <StatRow label={t('conversionRate')} value={`${Math.round(((stats.goals ?? 0) / stats.totalShots) * 100)}%`} />
+                  )}
+                </Module>
+                <Module title={t('modDribbling')}>
+                  <PercentBar label={t('dribbles')}       made={stats.succDribbles ?? 0} total={stats.dribbles ?? 0} color={accentColor} />
+                  <StatRow label={t('carriesFinal3rd')}   value={stats.carriesIntoFT ?? 0} accent />
+                  <StatRow label={t('carriesBox')}        value={stats.carriesIntoBox ?? 0} accent />
+                  <StatRow label={t('ballControls')}      value={stats.ballControl ?? 0} />
+                </Module>
+              </div>
             </div>
+
+            {/* ── PASSING & VISION ──────────────────────────────── */}
+            <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: 'var(--font)', borderBottom: B }}>
+              {t('tabPassing')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderBottom: BT }}>
+              <div style={{ borderRight: B }}>
+                <Module title={t('modPassing')}>
+                  <StatRow label={t('totalPasses')}       value={stats.totalPasses ?? 0} accent />
+                  <PercentBar label={t('passAccuracy')}       made={stats.completePasses ?? 0}       total={stats.totalPasses ?? 0}  color={accentColor} />
+                  <PercentBar label={t('progressivePasses')}  made={stats.successProgPasses ?? 0}    total={stats.progPasses ?? 0}   color="#09D69F" />
+                  <PercentBar label={t('longBalls')}          made={stats.successLongBalls ?? 0}     total={stats.longBalls ?? 0}    color="#888" />
+                  <PercentBar label={t('crosses')}            made={stats.successCrosses ?? 0}       total={stats.crosses ?? 0}      color={accentColor} />
+                  <PercentBar label={t('passesIntoBox')}      made={stats.successPassesIntoBox ?? 0} total={stats.passesIntoBox ?? 0} color="#FFD166" />
+                </Module>
+                <Module title={t('modCreative')}>
+                  <StatRow label={t('keyPasses')}         value={stats.keyPasses ?? 0} accent />
+                  <StatRow label={t('assists')}           value={stats.assists ?? 0}   accent />
+                  <StatRow label={t('passesOwnHalf')}     value={stats.ownHalfPasses ?? 0} />
+                  <StatRow label={t('passesOppHalf')}     value={stats.oppHalfPasses ?? 0} />
+                  <StatRow label={t('incompletePasses')}  value={stats.incompletePasses ?? 0} />
+                </Module>
+              </div>
+              <div style={{ minHeight: 300 }}>
+                {hasPassEvents
+                  ? <Module title={t('modPassMap')}>
+                      <DistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
+                    </Module>
+                  : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noPassData')}</div>
+                }
+              </div>
+            </div>
+
+            {/* ── DEFENSIVE ─────────────────────────────────────── */}
+            <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: 'var(--font)', borderBottom: B }}>
+              {t('tabDefensive')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderBottom: BT }}>
+              <div style={{ borderRight: B }}>
+                <Module title={t('modTackling')}>
+                  <StatRow label={t('totalTackles')}          value={stats.tackles ?? 0} />
+                  <StatRow label={t('successful')}            value={stats.succTackles ?? 0} accent />
+                  <StatRow label={t('withPossession')}        value={stats.tackleRegain ?? 0} accent />
+                  <PercentBar label={t('successRate')} made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
+                </Module>
+                <Module title={t('modInterceptions')}>
+                  <StatRow label={t('totalInterceptions')}        value={stats.interceptions ?? 0} accent />
+                  <StatRow label={t('withPossessionRegained')}    value={stats.intRegain ?? 0} accent />
+                </Module>
+                <Module title={t('modDuels')}>
+                  <StatRow label={t('aerialDuelsWon')}   value={stats.aerialDuels ?? 0} accent />
+                  <StatRow label={t('pressuresApplied')} value={stats.pressures ?? 0} />
+                  <StatRow label={t('blocks')}           value={stats.blocks ?? 0} />
+                  <StatRow label={t('clearances')}       value={stats.clearances ?? 0} />
+                </Module>
+              </div>
+              <div>
+                <Module title={t('modDefSummary')}>
+                  <StatRow label={t('totalDefActions')} value={(stats.tackles ?? 0) + (stats.interceptions ?? 0) + (stats.blocks ?? 0) + (stats.clearances ?? 0)} accent />
+                  <StatRow label={t('saves')} value={stats.saves ?? 0} />
+                </Module>
+              </div>
+            </div>
+
+            {/* ── HEATMAPS ──────────────────────────────────────── */}
+            <div style={{ background: '#000', color: '#FFD166', padding: '6px 14px', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: 'var(--font)', borderBottom: B }}>
+              {t('tabHeatmaps')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+              <div style={{ borderRight: B }}>
+                <Module title={t('modHeatmap')}>
+                  <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
+                </Module>
+              </div>
+              <div>
+                {hasShotEvents
+                  ? <Module title={t('modShotMap')}>
+                      <ShotMapPitch shots={stats.shotEvents} playerName={playerName} />
+                    </Module>
+                  : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noShots')}</div>
+                }
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* PASSING & VISION */}
-        {tab === 'PASSING & VISION' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-            <div style={{ borderRight: B }}>
-              <Module title={t('modPassing')}>
-                <StatRow label={t('totalPasses')}       value={stats.totalPasses ?? 0} accent />
-                <PercentBar label={t('passAccuracy')}       made={stats.completePasses ?? 0}       total={stats.totalPasses ?? 0}  color={accentColor} />
-                <PercentBar label={t('progressivePasses')}  made={stats.successProgPasses ?? 0}    total={stats.progPasses ?? 0}   color="#09D69F" />
-                <PercentBar label={t('longBalls')}          made={stats.successLongBalls ?? 0}     total={stats.longBalls ?? 0}    color="#888" />
-                <PercentBar label={t('crosses')}            made={stats.successCrosses ?? 0}       total={stats.crosses ?? 0}      color={accentColor} />
-                <PercentBar label={t('passesIntoBox')}      made={stats.successPassesIntoBox ?? 0} total={stats.passesIntoBox ?? 0} color="#FFD166" />
-              </Module>
-              <Module title={t('modCreative')}>
-                <StatRow label={t('keyPasses')}         value={stats.keyPasses ?? 0} accent />
-                <StatRow label={t('assists')}           value={stats.assists ?? 0}   accent />
-                <StatRow label={t('passesOwnHalf')}     value={stats.ownHalfPasses ?? 0} />
-                <StatRow label={t('passesOppHalf')}     value={stats.oppHalfPasses ?? 0} />
-                <StatRow label={t('incompletePasses')}  value={stats.incompletePasses ?? 0} />
-              </Module>
-            </div>
-            <div style={{ minHeight: 300 }}>
-              {hasPassEvents
-                ? <Module title={t('modPassMap')}>
-                    <DistributionPitch events={stats.passEvents} teamColor={accentColor} playerName={playerName} players={lineup} allTeamEvents={allTeamEvents} />
-                  </Module>
-                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noPassData')}</div>
-              }
-            </div>
-          </div>
-        )}
-
-        {/* DEFENSIVE */}
-        {tab === 'DEFENSIVE' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-            <div style={{ borderRight: B }}>
-              <Module title={t('modTackling')}>
-                <StatRow label={t('totalTackles')}          value={stats.tackles ?? 0} />
-                <StatRow label={t('successful')}            value={stats.succTackles ?? 0} accent />
-                <StatRow label={t('withPossession')}        value={stats.tackleRegain ?? 0} accent />
-                <PercentBar label={t('successRate')} made={stats.succTackles ?? 0} total={stats.tackles ?? 0} color={accentColor} />
-              </Module>
-              <Module title={t('modInterceptions')}>
-                <StatRow label={t('totalInterceptions')}        value={stats.interceptions ?? 0} accent />
-                <StatRow label={t('withPossessionRegained')}    value={stats.intRegain ?? 0} accent />
-              </Module>
-              <Module title={t('modDuels')}>
-                <StatRow label={t('aerialDuelsWon')}   value={stats.aerialDuels ?? 0} accent />
-                <StatRow label={t('pressuresApplied')} value={stats.pressures ?? 0} />
-                <StatRow label={t('blocks')}           value={stats.blocks ?? 0} />
-                <StatRow label={t('clearances')}       value={stats.clearances ?? 0} />
-              </Module>
-            </div>
-            <div>
-              <Module title={t('modDefSummary')}>
-                <StatRow label={t('totalDefActions')} value={(stats.tackles ?? 0) + (stats.interceptions ?? 0) + (stats.blocks ?? 0) + (stats.clearances ?? 0)} accent />
-                <StatRow label={t('saves')} value={stats.saves ?? 0} />
-              </Module>
-            </div>
-          </div>
-        )}
-
-        {/* HEATMAPS */}
-        {tab === 'HEATMAPS' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-            <div style={{ borderRight: B }}>
-              <Module title={t('modHeatmap')}>
-                <HeatMap events={stats.allEvents ?? []} teamColor={accentColor} />
-              </Module>
-            </div>
-            <div>
-              {hasShotEvents
-                ? <Module title={t('modShotMap')}>
-                    <ShotMapPitch shots={stats.shotEvents} playerName={playerName} />
-                  </Module>
-                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.3, fontFamily: 'var(--font)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>{t('noShots')}</div>
-              }
-            </div>
-          </div>
-        )}
-
-        {/* HIGHLIGHTS */}
+        {/* ══ HIGHLIGHTS ══ */}
         {tab === 'HIGHLIGHTS' && (
           isAggregate
             ? <AggregateHighlightTab events={stats.allEvents ?? []} playerName={playerName} matches={matches} />

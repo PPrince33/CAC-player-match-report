@@ -47,6 +47,7 @@ export const TRANSLATIONS = {
     kpiSucc: 'SUCC',
 
     // Tabs
+    tabReport: 'REPORT',
     tabOverview: 'OVERVIEW',
     tabPassing: 'PASSING & VISION',
     tabDefensive: 'DEFENSIVE',
@@ -207,6 +208,7 @@ export const TRANSLATIONS = {
     kpiSucc: 'SKUT.',
 
     // Tabs
+    tabReport: 'RAPORT',
     tabOverview: 'PRZEGLĄD',
     tabPassing: 'PODANIA I WIZJA',
     tabDefensive: 'OBRONA',
