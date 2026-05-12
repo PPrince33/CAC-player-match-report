@@ -13,8 +13,7 @@
  *  - Hover preview: shows what composite rating a bench player would get at that position
  *  - Reset button to restore algorithm suggestion
  */
-import { useMemo, useState, useRef, useLayoutEffect, useCallback, useEffect } from 'react'
-import { drawPitch } from '../utils/pitchRenderer.js'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 
 const FONT   = 'var(--font)'
 const ASPECT = 68 / 105
@@ -262,36 +261,57 @@ function computeLineup(lineups, allStats) {
   return { lineup, allPlayers, composites, metrics }
 }
 
-// ─── Pitch background (canvas, no tokens) ────────────────────────────────────
-function PitchBackground({ pitchRef }) {
-  const canvasRef = useRef(null)
+// ─── Pitch background (SVG, portrait) ─────────────────────────────────────────
+// Portrait pitch: viewBox is 68 wide × 105 tall (real pitch dimensions in m).
+// y=0 is the top of the screen (attack end), y=105 is the bottom (defense end).
+// SVG auto-scales to its container — no JS measurement or DPI handling needed.
+function PitchBackground() {
+  const stroke = '#000'
+  const sw = 0.35   // line width in pitch units
+  return (
+    <svg
+      viewBox="0 0 68 105"
+      preserveAspectRatio="none"
+      style={{ display: 'block', position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+    >
+      {/* Pitch fill */}
+      <rect x="0" y="0" width="68" height="105" fill="#F4F4F4" />
 
-  useLayoutEffect(() => {
-    const container = pitchRef.current
-    const canvas    = canvasRef.current
-    if (!container || !canvas) return
+      {/* Outer boundary */}
+      <rect x="0" y="0" width="68" height="105" fill="none" stroke={stroke} strokeWidth={sw} />
 
-    function draw(w) {
-      if (w <= 0) return
-      const h = w / ASPECT, dpr = window.devicePixelRatio || 1
-      canvas.width = w * dpr; canvas.height = h * dpr
-      canvas.style.width = `${w}px`; canvas.style.height = `${h}px`
-      const ctx = canvas.getContext('2d'); if (!ctx) return
-      ctx.scale(dpr, dpr)
-      ctx.save()
-      ctx.translate(w, 0); ctx.rotate(Math.PI / 2)
-      drawPitch(ctx, h, w)
-      ctx.restore()
-    }
+      {/* Halfway line */}
+      <line x1="0" y1="52.5" x2="68" y2="52.5" stroke={stroke} strokeWidth={sw} />
 
-    const initW = container.offsetWidth || container.getBoundingClientRect().width
-    draw(initW)
-    const obs = new ResizeObserver(([e]) => draw(e.contentRect.width))
-    obs.observe(container)
-    return () => obs.disconnect()
-  }, [pitchRef])
+      {/* Centre circle (r = 9.15m) */}
+      <circle cx="34" cy="52.5" r="9.15" fill="none" stroke={stroke} strokeWidth={sw} />
+      <circle cx="34" cy="52.5" r="0.4" fill={stroke} />
 
-  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+      {/* Top penalty area (attack end): width 40.32, depth 16.5 */}
+      <rect x="13.84" y="0" width="40.32" height="16.5" fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Top 6-yard box: width 18.32, depth 5.5 */}
+      <rect x="24.84" y="0" width="18.32" height="5.5" fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Top penalty spot at 11m from goal line */}
+      <circle cx="34" cy="11" r="0.4" fill={stroke} />
+      {/* Top penalty arc (D) */}
+      <path d="M 24.85 16.5 A 9.15 9.15 0 0 0 43.15 16.5" fill="none" stroke={stroke} strokeWidth={sw} />
+
+      {/* Bottom penalty area (defense end) */}
+      <rect x="13.84" y="88.5" width="40.32" height="16.5" fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Bottom 6-yard box */}
+      <rect x="24.84" y="99.5" width="18.32" height="5.5" fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Bottom penalty spot */}
+      <circle cx="34" cy="94" r="0.4" fill={stroke} />
+      {/* Bottom penalty arc (D) */}
+      <path d="M 24.85 88.5 A 9.15 9.15 0 0 1 43.15 88.5" fill="none" stroke={stroke} strokeWidth={sw} />
+
+      {/* Corner arcs (r = 1m) */}
+      <path d="M 0 1 A 1 1 0 0 0 1 0"     fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d="M 67 0 A 1 1 0 0 0 68 1"   fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d="M 68 104 A 1 1 0 0 0 67 105" fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d="M 1 105 A 1 1 0 0 0 0 104" fill="none" stroke={stroke} strokeWidth={sw} />
+    </svg>
+  )
 }
 
 // ─── Player token on pitch ────────────────────────────────────────────────────
@@ -542,7 +562,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
             ref={pitchRef}
             style={{ position: 'relative', width: '100%', aspectRatio: '68 / 105' }}
           >
-            <PitchBackground pitchRef={pitchRef} />
+            <PitchBackground />
 
             {/* Token overlay — exactly covers the pitch wrapper */}
             <div
