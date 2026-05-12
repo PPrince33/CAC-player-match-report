@@ -375,7 +375,7 @@ function PitchToken({ slot, entry, onDragStart, onDragEnd, isDragging, isDropTar
           maxWidth: 58, textAlign: 'center', overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {firstName(entry.player?.player?.player_name ?? '')}
+          {firstName(entry.player?.player?.player_name ?? entry.player?.player_name ?? '')}
         </div>
       )}
     </div>
@@ -590,7 +590,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
               const entry = activeLineup[slot.id]
               if (!entry) return null
               const isPoor = entry.rating < POOR_FIT
-              const name   = entry.player?.player?.player_name ?? 'Unknown'
+              const name   = entry.player?.player?.player_name ?? entry.player?.player_name ?? 'Unknown'
               const jersey = entry.player?.jersey_no ?? '?'
               return (
                 <div
@@ -663,7 +663,7 @@ export default function LineupSuggestion({ lineups, allStats }) {
             <div style={{ overflowY: 'auto', maxHeight: 240 }}>
               {benchPlayers.map(player => {
                 const pid  = player.player_id
-                const name = player.player?.player_name ?? 'Unknown'
+                const name = player.player?.player_name ?? player.player_name ?? 'Unknown'
                 const s    = allStats[pid] ?? {}
                 const isDraggingThis = dragging?.pid === pid
 
