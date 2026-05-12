@@ -291,7 +291,7 @@ function PitchBackground({ pitchRef }) {
     return () => obs.disconnect()
   }, [pitchRef])
 
-  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} />
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
 }
 
 // ─── Player token on pitch ────────────────────────────────────────────────────
@@ -531,24 +531,20 @@ export default function LineupSuggestion({ lineups, allStats }) {
       <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
 
         {/* ── Interactive Pitch ───────────────────────────────────────── */}
-        {/*
-          alignItems: 'flex-start' on parent prevents this column from being
-          stretched to match the right panel height. Without that, the outer
-          div gets taller than the canvas, creating an empty area below the
-          pitch that looks like the pitch isn't rendering.
-        */}
-        <div
-          ref={pitchRef}
-          style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}
-        >
-          {/* Inner block wrapper: canvas + overlay only.
-              Must NOT be a flex child with flex:1 — that collapses to 0 height
-              when the parent has no explicit height. Plain block lets the canvas
-              set the height naturally, and inset:0 on the overlay matches exactly. */}
-          <div style={{ position: 'relative' }}>
+        <div style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}>
+          {/*
+            Use CSS aspect-ratio so the wrapper height EXACTLY matches a
+            portrait pitch (width × 105/68). Both the canvas and the token
+            overlay are positioned inside this wrapper, so their dimensions
+            are guaranteed identical regardless of any parent flex stretching.
+          */}
+          <div
+            ref={pitchRef}
+            style={{ position: 'relative', width: '100%', aspectRatio: '68 / 105' }}
+          >
             <PitchBackground pitchRef={pitchRef} />
 
-            {/* Token overlay — covers only the canvas, not the legend below */}
+            {/* Token overlay — exactly covers the pitch wrapper */}
             <div
               style={{ position: 'absolute', inset: 0 }}
               onDragOver={e => e.preventDefault()}
