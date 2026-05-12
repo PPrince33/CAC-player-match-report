@@ -17,7 +17,7 @@ function mapCoords(x, y, w, h) {
 
 function lastName(fullName = '') {
   const parts = fullName.trim().split(' ')
-  return parts[parts.length - 1].toUpperCase()
+  return parts[0].toUpperCase()
 }
 
 // Infer receiver: earliest visible teammate event within 10 units + 8 sec

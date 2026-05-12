@@ -16,7 +16,7 @@ function mapXY(x, y, w, h) {
 
 function lastName(name = '') {
   const parts = name.trim().split(' ')
-  return parts[parts.length - 1].toUpperCase()
+  return parts[0].toUpperCase()
 }
 
 // Map success rate [0,1] to a color between red and green via yellow
