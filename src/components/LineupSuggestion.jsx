@@ -528,9 +528,15 @@ export default function LineupSuggestion({ lineups, allStats }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 0 }}>
+      <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
 
         {/* ── Interactive Pitch ───────────────────────────────────────── */}
+        {/*
+          alignItems: 'flex-start' on parent prevents this column from being
+          stretched to match the right panel height. Without that, the outer
+          div gets taller than the canvas, creating an empty area below the
+          pitch that looks like the pitch isn't rendering.
+        */}
         <div
           ref={pitchRef}
           style={{ flex: '0 0 50%', borderRight: '2px solid #000' }}
