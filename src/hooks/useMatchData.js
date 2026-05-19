@@ -8,7 +8,11 @@ export const MATCH_IDS = [
   '4e7c84bf-e3c1-456d-b35b-ea508e0c2205',
   '6eb99ba8-da82-4fdb-8d0d-ecd20a1766a5',
 ]
-export const TEAM_ID = '457b3eca-e4da-4b91-b884-8598abe46820'
+export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
+export const TEAM_IDS = [
+  '457b3eca-e4da-4b91-b884-8598abe46820',
+  '055a37c9-4aa5-4edb-8903-4b0592e1b465', // MKS PODLASIE SOKOŁÓW PODLASKI (alt registration)
+]
 
 function parseCoords(ev) {
   return {
@@ -98,7 +102,7 @@ export function useMatchData() {
         // 3. Fetch lineups per match individually
         const lineupResults = await Promise.all(
           MATCH_IDS.map(mid =>
-            supabase.from('lineups').select('*').eq('team_id', TEAM_ID).eq('match_id', mid).order('starting_xi', { ascending: false })
+            supabase.from('lineups').select('*').in('team_id', TEAM_IDS).eq('match_id', mid).order('starting_xi', { ascending: false })
           )
         )
         for (const { error } of lineupResults) {

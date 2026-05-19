@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { useMatchData, TEAM_ID } from './hooks/useMatchData.js'
+import { useMatchData, TEAM_IDS } from './hooks/useMatchData.js'
 import { hasCredentials, supabase } from './lib/supabase.js'
 import PlayerReport from './components/PlayerReport.jsx'
 import HeatMap from './components/HeatMap.jsx'
@@ -269,7 +269,7 @@ function PlayerRow({ p, allStats, getRowColor, handleSelect, t, showMatchCount =
 // Helper: get the opponent name for MKS in a given match
 function getOpponent(match) {
   if (!match) return ''
-  return match.home_team_id === TEAM_ID
+  return TEAM_IDS.includes(match.home_team_id)
     ? (match.away_team?.team_name ?? 'Unknown')
     : (match.home_team?.team_name ?? 'Unknown')
 }

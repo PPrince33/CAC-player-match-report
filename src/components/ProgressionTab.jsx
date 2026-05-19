@@ -6,7 +6,7 @@
  *  Right — selected player detail: sparklines + per-match values for every metric
  */
 import { useState, useMemo } from 'react'
-import { TEAM_ID } from '../hooks/useMatchData.js'
+import { TEAM_IDS } from '../hooks/useMatchData.js'
 
 const FONT = 'var(--font)'
 
@@ -69,7 +69,7 @@ function firstName(name = '') {
 
 function getOpponent(match) {
   if (!match) return 'Unknown'
-  return match.home_team_id === TEAM_ID
+  return TEAM_IDS.includes(match.home_team_id)
     ? (match.away_team?.team_name ?? 'Unknown')
     : (match.home_team?.team_name ?? 'Unknown')
 }
