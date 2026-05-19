@@ -201,10 +201,7 @@ function computeLineup(lineups, allStats) {
     const pos = (l.player?.position ?? '').trim().toLowerCase()
     return !GK_POSITIONS.has(pos) && !!allStats[l.player_id]
   })
-  const squad = outfield.filter(l => {
-    const s = allStats[l.player_id]
-    return ((s.totalPasses ?? 0) / (s.matchesPlayed ?? 1)) >= 20
-  })
+  const squad = outfield
   if (squad.length < 10) return null
 
   const pids = squad.map(p => p.player_id)
