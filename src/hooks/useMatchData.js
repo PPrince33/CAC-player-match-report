@@ -13,6 +13,7 @@ export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
 export const TEAM_IDS = [
   '457b3eca-e4da-4b91-b884-8598abe46820',
   '055a37c9-4aa5-4edb-8903-4b0592e1b465', // MKS PODLASIE SOKOŁÓW PODLASKI (alt registration)
+  '5a3431c5-d797-4ee2-8338-6710bb8550b8', // match 5 — 23 May 2026 (alt registration)
 ]
 
 function parseCoords(ev) {
