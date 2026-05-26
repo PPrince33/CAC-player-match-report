@@ -127,13 +127,12 @@ export function useMatchData() {
           player: playerMap[l.player_id] || null,
         }))
 
-        // ── Build canonical player identity: same name+jersey = same player ──
-        // A player can have different player_id values across matches if re-registered.
-        // We use "normalised_name__jersey" as the stable key and pick the first
-        // player_id encountered as the canonical one.
+        // ── Build canonical player identity: same name = same player ──
+        // A player can have different player_id values or jersey numbers across
+        // matches if re-registered. We use normalised player_name as the sole
+        // stable key so all their matches are aggregated together.
         const playerKey = (l) => {
-          const name = (l.player?.player_name ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
-          return `${name}__${l.jersey_no ?? ''}`
+          return (l.player?.player_name ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
         }
         const keyToCanonicalId = {}   // key → canonical player_id
         const idToCanonicalId  = {}   // any player_id → canonical player_id
