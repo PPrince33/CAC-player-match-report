@@ -8,12 +8,14 @@ export const MATCH_IDS = [
   '4e7c84bf-e3c1-456d-b35b-ea508e0c2205',
   '6eb99ba8-da82-4fdb-8d0d-ecd20a1766a5',
   'dc040ee4-17f0-40ed-9590-02e57d9ee6b3',
+  'b0edc36f-e38d-4826-b362-3b0c7a1133d4',
 ]
 export const TEAM_ID  = '457b3eca-e4da-4b91-b884-8598abe46820'
 export const TEAM_IDS = [
   '457b3eca-e4da-4b91-b884-8598abe46820',
   '055a37c9-4aa5-4edb-8903-4b0592e1b465', // alt registration (match 4)
   '940c03e3-5abb-42dc-95c4-546951a7866e', // alt registration (match 5 — 23 May 2026)
+  'bfc913f5-ab51-4ef1-a046-1f2b8cc91e12', // alt registration (new match)
 ]
 
 function parseCoords(ev) {
